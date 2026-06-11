@@ -9,7 +9,7 @@
 - [ ] Receita 3 — Orçamentista
 - [ ] Receita 4 — Corte sem desperdício
 - [ ] Receita 5 — Promessa de prazo
-- [ ] `lib-comum`
+- [ ] `lib_comum`
 - [ ] `pack-extra` (Order Bump)
 - [ ] Infra / CI / docs / tooling
 

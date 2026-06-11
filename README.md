@@ -72,7 +72,7 @@ Recomendado: **VS Code com a extensão Dev Containers**. `Reopen in Container` r
 
 ```
 .
-├── lib-comum/          # Helpers MQTT, TimescaleDB, gerador de dados sintéticos
+├── lib_comum/          # Helpers MQTT, TimescaleDB, gerador de dados sintéticos
 ├── receita-1..5/       # Uma pasta por receita
 │   ├── nivel-1-diy/
 │   ├── nivel-2-pro/

@@ -1,4 +1,4 @@
-# lib-comum
+# lib_comum
 
 Shared helpers used across recipes: MQTT, TimescaleDB / Postgres, LLM abstraction (provider-agnostic), synthetic data generators, Mosquitto/Grafana provisioning files.
 

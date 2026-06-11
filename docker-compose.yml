@@ -16,7 +16,7 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - timescaledb_data:/var/lib/postgresql/data
-      - ./lib-comum/sql/init:/docker-entrypoint-initdb.d:ro
+      - ./lib_comum/sql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fabrica}"]
       interval: 5s
@@ -31,7 +31,7 @@ services:
       - "${MQTT_PORT:-1883}:1883"
       - "9001:9001"
     volumes:
-      - ./lib-comum/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./lib_comum/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto_data:/mosquitto/data
       - mosquitto_log:/mosquitto/log
     healthcheck:
@@ -57,7 +57,7 @@ services:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./lib-comum/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./lib_comum/grafana/provisioning:/etc/grafana/provisioning:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
       interval: 10s

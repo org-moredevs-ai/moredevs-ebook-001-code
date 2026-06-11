@@ -96,7 +96,7 @@ test-all: ## Run all tests including integration
 lint: ## Run linters (ruff + mypy)
 	uv run ruff check .
 	uv run ruff format --check .
-	uv run mypy lib-comum
+	uv run mypy lib_comum
 
 .PHONY: format
 format: ## Auto-format code with ruff

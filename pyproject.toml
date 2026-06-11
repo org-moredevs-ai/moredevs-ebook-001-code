@@ -20,11 +20,13 @@ keywords = [
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
-    "Intended Audience :: Manufacturing",
+    "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Topic :: Scientific/Engineering :: Industrial Automation",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
 dependencies = [
@@ -120,7 +122,7 @@ disallow_untyped_defs = true
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "lib-comum", "receita-1-olho-da-fabrica", "receita-2-maquina-avisa", "receita-3-orcamentista", "receita-4-corte-sem-desperdicio", "receita-5-promessa-prazo"]
+testpaths = ["tests", "lib_comum", "receita-1-olho-da-fabrica", "receita-2-maquina-avisa", "receita-3-orcamentista", "receita-4-corte-sem-desperdicio", "receita-5-promessa-prazo"]
 python_files = ["test_*.py", "*_test.py"]
 addopts = "-ra --strict-markers"
 markers = [
@@ -130,11 +132,11 @@ markers = [
 
 [tool.coverage.run]
 branch = true
-source = ["lib-comum"]
+source = ["lib_comum"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["lib-comum"]
+packages = ["lib_comum"]

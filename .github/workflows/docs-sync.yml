@@ -1,0 +1,46 @@
+name: Docs sync
+
+# Verifies that snippets cited by the manuscript still exist in the code.
+# Activated in Phase 2 once the verify_ebook_sync tool is implemented.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/*.py"
+      - "**/*.md"
+      - "tools/verify_ebook_sync.py"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Skip if verifier not yet implemented
+        id: check
+        run: |
+          if [ -f tools/verify_ebook_sync.py ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "verify_ebook_sync.py not yet present — skipping. This workflow becomes active in Phase 2."
+          fi
+
+      - name: Set up Python
+        if: steps.check.outputs.exists == 'true'
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        if: steps.check.outputs.exists == 'true'
+        run: uv sync
+
+      - name: Run verify
+        if: steps.check.outputs.exists == 'true'
+        run: uv run python -m tools.verify_ebook_sync

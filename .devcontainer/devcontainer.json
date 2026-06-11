@@ -1,0 +1,50 @@
+{
+  "name": "moredevs-ebook-001-code",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": true,
+      "dockerDashComposeVersion": "v2"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "charliermarsh.ruff",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.mypy-type-checker",
+        "tamasfe.even-better-toml",
+        "redhat.vscode-yaml",
+        "bierner.markdown-mermaid",
+        "ms-azuretools.vscode-docker",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/workspaces/moredevs-ebook-001-code/.venv/bin/python",
+        "python.analysis.typeCheckingMode": "strict",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll.ruff": "explicit",
+          "source.organizeImports.ruff": "explicit"
+        },
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        }
+      }
+    }
+  },
+  "postCreateCommand": "make setup",
+  "forwardPorts": [3000, 5432, 1883, 8501, 8000],
+  "portsAttributes": {
+    "3000": { "label": "Grafana" },
+    "5432": { "label": "TimescaleDB" },
+    "1883": { "label": "Mosquitto MQTT" },
+    "8501": { "label": "Streamlit" },
+    "8000": { "label": "FastAPI" }
+  },
+  "remoteUser": "vscode"
+}

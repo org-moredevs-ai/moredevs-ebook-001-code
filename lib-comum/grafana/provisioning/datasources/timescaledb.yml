@@ -1,0 +1,21 @@
+apiVersion: 1
+
+datasources:
+  - name: TimescaleDB
+    type: postgres
+    access: proxy
+    url: timescaledb:5432
+    user: ${POSTGRES_USER:-fabrica}
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD:-change_me_local_only}
+    jsonData:
+      database: ${POSTGRES_DB:-fabrica}
+      sslmode: disable
+      maxOpenConns: 10
+      maxIdleConns: 10
+      maxIdleConnsAuto: true
+      connMaxLifetime: 14400
+      postgresVersion: 1600
+      timescaledb: true
+    isDefault: true
+    editable: true

@@ -1,0 +1,107 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+MANIFEST
+
+# Virtual envs
+.venv/
+venv/
+env/
+ENV/
+
+# uv
+.uv/
+
+# Testing / coverage
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+.hypothesis/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+htmlcov/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# Linting
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# IDEs
+.vscode/*
+!.vscode/settings.json.example
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Secrets / local config
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+credentials.json
+secrets/
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Generated data (regenerable via `make seed-data`)
+**/data-exemplo/**/*.parquet
+**/data-exemplo/**/*.db
+**/data-exemplo/**/*.sqlite
+**/data-exemplo/**/raw/
+**/data-exemplo/**/cache/
+
+# Build artefacts
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# OS noise
+Thumbs.db
+desktop.ini

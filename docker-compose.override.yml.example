@@ -1,0 +1,14 @@
+# Copy to docker-compose.override.yml for local customisation.
+# Loaded automatically by docker compose; do NOT commit your real override.
+
+services:
+  timescaledb:
+    # Example: expose on a non-default port to avoid clashing with a host Postgres
+    ports:
+      - "55432:5432"
+
+  grafana:
+    # Example: pin to a specific image digest
+    # image: grafana/grafana@sha256:...
+    environment:
+      GF_FEATURE_TOGGLES_ENABLE: "publicDashboards"

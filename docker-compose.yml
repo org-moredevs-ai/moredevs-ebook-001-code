@@ -53,11 +53,18 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_INSTALL_PLUGINS: ""
+      # Forward Postgres credentials so the provisioned TimescaleDB datasource
+      # can interpolate them at boot. Without these, the env var placeholders
+      # resolve to empty strings and authentication fails silently.
+      POSTGRES_USER: ${POSTGRES_USER:-fabrica}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_local_only}
+      POSTGRES_DB: ${POSTGRES_DB:-fabrica}
     ports:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./lib_comum/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./receita-1-olho-da-fabrica/nivel-1-diy/grafana-dashboards:/var/lib/grafana/dashboards/receita-1-n1:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
       interval: 10s

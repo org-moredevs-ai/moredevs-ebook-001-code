@@ -1,15 +1,20 @@
+# Grafana's provisioning loader does NOT support docker-compose-style
+# `${VAR:-default}` substitution — only `$VAR` or `${VAR}`. Defaults are
+# supplied by docker-compose.yml via the `:-` fallback there.
+
 apiVersion: 1
 
 datasources:
   - name: TimescaleDB
+    uid: TimescaleDB
     type: postgres
     access: proxy
     url: timescaledb:5432
-    user: ${POSTGRES_USER:-fabrica}
+    user: $POSTGRES_USER
     secureJsonData:
-      password: ${POSTGRES_PASSWORD:-change_me_local_only}
+      password: $POSTGRES_PASSWORD
     jsonData:
-      database: ${POSTGRES_DB:-fabrica}
+      database: $POSTGRES_DB
       sslmode: disable
       maxOpenConns: 10
       maxIdleConns: 10

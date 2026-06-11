@@ -58,9 +58,18 @@ seed-data: ## Generate synthetic data for all recipes
 
 ##@ Demos
 
+R1_N1_DIR := receita-1-olho-da-fabrica/nivel-1-diy
+
 .PHONY: demo-r1
-demo-r1: ## Recipe 1 — The Eye on the Floor
-	uv run python -m receita-1-olho-da-fabrica.nivel-1-diy.ingest.mqtt_to_influx --demo
+demo-r1: ## Recipe 1 — The Eye on the Floor (90s end-to-end demo)
+	@echo "→ Make sure 'make up' is running (TimescaleDB + Mosquitto + Grafana)."
+	@echo "→ Starting simulator + ingest in parallel for 90s..."
+	uv run python $(R1_N1_DIR)/simulator/replay_to_mqtt.py \
+	    --speed-up 600 --duration 80 --limit-machines 5 & \
+	uv run python $(R1_N1_DIR)/ingest/mqtt_to_db.py \
+	    --max-runtime-seconds 90 & \
+	wait
+	@echo "→ Open http://localhost:3000 (admin/admin) — dashboard 'Receita 1 N1 — Olho da fábrica'."
 
 .PHONY: demo-r2
 demo-r2: ## Recipe 2 — The Machine That Warns

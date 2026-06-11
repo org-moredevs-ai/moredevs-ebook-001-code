@@ -103,6 +103,7 @@ docker-compose.override.yml
 .pio/
 .pioenvs/
 .piolibdeps/
+**/firmware-esp32/secrets.ini
 
 # OS noise
 Thumbs.db

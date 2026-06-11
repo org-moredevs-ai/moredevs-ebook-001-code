@@ -86,6 +86,8 @@ docker-compose.override.yml
 
 # Generated data (regenerable via `make seed-data`)
 **/data-exemplo/**/*.parquet
+**/data-exemplo/**/*.csv
+**/data-exemplo/**/*.csv.gz
 **/data-exemplo/**/*.db
 **/data-exemplo/**/*.sqlite
 **/data-exemplo/**/raw/

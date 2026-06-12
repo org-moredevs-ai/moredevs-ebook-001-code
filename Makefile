@@ -71,6 +71,30 @@ demo-r1: ## Recipe 1 — The Eye on the Floor (90s end-to-end demo)
 	wait
 	@echo "→ Open http://localhost:3000 (admin/admin) — dashboard 'Receita 1 N1 — Olho da fábrica'."
 
+R1_N2_DIR := receita-1-olho-da-fabrica/nivel-2-pro
+
+.PHONY: demo-r1-n2
+demo-r1-n2: ## Recipe 1 Tier 2 — Modbus + OEE (90s end-to-end demo)
+	@echo "→ Make sure 'make up' is running (TimescaleDB + Mosquitto + Grafana)."
+	@echo "→ Starting Modbus emulator (5 PLCs) + collector for 90s..."
+	uv run python -m lib_comum.plc_sim.modbus_emulator \
+	    --port 1502 --speed-up 600 --duration 90 --limit-machines 5 & \
+	sleep 2 && \
+	uv run python $(R1_N2_DIR)/modbus_collector/main.py \
+	    --target localhost:1502 \
+	    --machine linha-1.maquina-1 \
+	    --machine linha-1.maquina-2 \
+	    --machine linha-1.maquina-3 \
+	    --machine linha-1.maquina-4 \
+	    --machine linha-2.maquina-1 \
+	    --max-runtime-seconds 80 & \
+	wait
+	@echo "→ Refreshing OEE continuous aggregates..."
+	docker compose exec -T timescaledb psql -U fabrica -d fabrica \
+	    -c "CALL refresh_continuous_aggregate('machine_availability_1m', NULL, NULL);" \
+	    -c "CALL refresh_continuous_aggregate('machine_availability_1h', NULL, NULL);" || true
+	@echo "→ Open http://localhost:3000 — dashboard 'Receita 1 N2 — OEE & Pro'."
+
 .PHONY: demo-r2
 demo-r2: ## Recipe 2 — The Machine That Warns
 	uv run python -m receita-2-maquina-avisa.nivel-1-diy.fft_alert --demo

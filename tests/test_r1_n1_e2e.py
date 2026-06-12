@@ -68,13 +68,18 @@ async def clean_db() -> None:
 
 
 async def _run_script(path: Path, args: list[str], timeout_s: float) -> int:
-    """Run *path* as a subprocess with the current python and wait up to *timeout_s*."""
+    """Run *path* as a subprocess with the current python and wait up to *timeout_s*.
+
+    Output is discarded (``DEVNULL``) on purpose: the simulator emits thousands
+    of log lines and a captured PIPE that nobody drains would deadlock once the
+    OS pipe buffer fills (~64 KB).
+    """
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         str(path),
         *args,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
     )
     try:
         await asyncio.wait_for(process.wait(), timeout=timeout_s)

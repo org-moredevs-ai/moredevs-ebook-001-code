@@ -8,7 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial repository scaffolding: structure for 5 recipes, base Docker stack (TimescaleDB + Mosquitto + Grafana), uv-based Python project, Makefile, dev container, GitHub Actions CI.
+- **Recipe 1 Tier 2 (Pro) — Modbus pipeline and OEE end-to-end.**
+  - `lib_comum.plc_sim.state_clock.SimClock`: shared compressed-time clock used by every PLC emulator, so emulators (Modbus today, OPC-UA next) share a single logical timeline.
+  - `lib_comum.plc_sim.modbus_emulator`: pymodbus 3.13-based async Modbus TCP server. Pretends to be N PLCs (default 5) on a single port, addressed by `device_id` 1..N. Per-machine `SimAction` callback writes register values from the alimentar dataset on every read — so the collector sees realistic, time-correlated state, shift counter, internal temperature and ambient temperature.
+  - `receita-1.../nivel-2-pro/modbus_collector/main.py`: pymodbus async client that polls every machine in parallel, batches inserts, handles reconnect, and writes 4 metrics per machine.
+  - `lib_comum/sql/init/03_oee.sql`: TimescaleDB continuous aggregates — `machine_availability_1m` (per-minute running fraction) and `machine_availability_1h` (hourly roll-up), with refresh policies. Plus the convenience view `machine_availability_last_24h`.
+  - `receita-1.../nivel-2-pro/grafana-dashboards/n2-oee-overview.json`: 4-panel dashboard provisioned automatically — availability per machine (last 24 h), gauge of worst 10 machines, internal vs ambient temperature (the line-3 case-study signal), shift-counter progression.
+  - `tests/test_r1_n2_e2e.py`: integration test that spawns emulator + collector on an isolated port and asserts rows in `telemetry` for all 4 metrics and 3 machines. Passes in ~19 s.
+  - `make demo-r1-n2`: orchestrates emulator + collector for 90 s and refreshes the aggregates at the end.
+
+### Initial scaffolding
+- Repository structure for 5 recipes, base Docker stack (TimescaleDB + Mosquitto + Grafana), uv-based Python project, Makefile, dev container, GitHub Actions CI.
 - `lib_comum.data_synth.alimentar`: synthetic data generator for the food-processing case study used by Recipe 1. Produces machine state events, ambient sensor readings, and hourly production counters across 30 days, with the deterministic line-3 thermal-protection signal embedded for discovery from SQL.
 - `tools.seed_synth_data`: CLI orchestrator (`make seed-data`).
 - Test suite for the alimentar generator (determinism, schemas, case-study signal correlation).

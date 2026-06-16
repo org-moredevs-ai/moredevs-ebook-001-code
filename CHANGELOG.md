@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Recipe 2 Tier 1 (DIY) — ESP32 + ADXL345 vibration pipeline + Python FFT alerts.** Real end-to-end implementation of the Chapter 2 case study (Marinha Grande moulds, press-1 bearing developing a fault over 11+ days).
+  - `lib_comum.plc_sim.vibration_signal`: deterministic 1-second 3-axis waveform synthesiser at 1 kHz. Healthy machines carry the 1× rotation harmonic + low-frequency noise; the fault-seeded press also gets a growing BPFO sinusoid, amplitude-modulated sidebands at BPFO ± rotation, and exponentially-decaying impulses at the bearing rate.
+  - `lib_comum.plc_sim.vibration_signal.compute_spectrum_band_amp`: convenience that runs `numpy.fft.rfft` and returns the RMS amplitude in a band; reused by the receiver and the tests.
+  - `receita-2-.../nivel-1-diy/simulator/replay_to_mqtt.py`: publishes 1-second snapshots per simulated minute over MQTT (`fabrica/<line>/<machine>/vibration`) for every moulds machine.
+  - `receita-2-.../nivel-1-diy/fft_alert/receiver.py`: MQTT subscriber that runs FFT per snapshot, persists per-band amplitudes to `vibration_bands`, and fires alerts when the BPFO band climbs above a **frozen-after-warmup** baseline. Severity escalates with the ratio; min-amplitude floor prevents noise-band false positives on quiet machines.
+  - `receita-2-.../nivel-1-diy/firmware-esp32/`: real PlatformIO project (ESP32 + ADXL345 over I²C, MQTT + WiFi auto-reconnect, ArduinoJson payload with the 1000-sample × 3-axis buffer, gitignored secrets).
+  - `receita-2-.../nivel-1-diy/grafana-dashboards/n1-vibration.json`: 4-panel dashboard (BPFO timeseries per machine, 1× rotation timeseries, recent alerts table, per-machine spectral fingerprint).
+  - `lib_comum/sql/init/04_vibration.sql`: `vibration_bands` and `vibration_alerts` hypertables with the same chunk-and-compress strategy as `telemetry`.
+  - `lib_comum.db`: `VibrationBandRow`, `VibrationAlertRow`, `insert_vibration_bands`, `insert_vibration_alert`, `truncate_vibration_tables` helpers.
+  - `tests/test_vibration_signal.py`: 7 fast tests covering shape/payload, determinism, healthy-vs-faulty BPFO growth, neighbour-isolation, in-band tone verification, and 1× persistence through wear.
+  - `tests/test_r2_n1_e2e.py`: integration test spawning simulator + receiver; asserts rows land in `vibration_bands`, that BPFO alerts fire, and that **every alert is on press-1** (zero false positives across the other 5 machines).
+  - `make demo-r2`: orchestrates a 60-second end-to-end demo (4320× speed-up so the full 12-day wear arc plays out in a minute).
+  - PT and EN READMEs covering BOM, demo, architecture, MQTT contract, receiver behaviour, and Tier 1 limits.
+
+### Changed
+- `docker-compose.yml`: Grafana now mounts the R2 N1 dashboard folder. The dashboards "Receita 1 N1 / N2" and "Receita 2 N1 — Vibração & FFT" are all auto-provisioned.
+
 - **Recipe 1 Tier 3 (Premium) — reference architecture.** PT and EN READMEs with the multi-site / Edge AI / ERP integration diagram, sizing guidance for the data lake, ERP-specific connector strategy (Primavera, PHC, Sage X3, SAP B1), and the NIS2 + EU AI Act + IATF 16949 / ISO 9001 / FSSC 22000 obligations relevant at this tier. Plus the consultancy ladder (diagnostic → pilot → multi-site → retainer) and EU funding pointers.
 - **Recipe 2 foundation — `moldes` synthetic dataset.** `lib_comum.data_synth.moldes` generates a Marinha Grande mould-making roster (1× 250 t press, 3× CNC mills, 2× EDMs) over 30 days. Beyond the usual `machine_states` / `sensor_readings` / `production_events`, it produces a new `vibration_metrics` table — per-minute, 3-axis RMS / peak / kurtosis / dominant_freq_hz. The fault-seeded press-1 develops a bearing wear signal over the last 12 days (RMS grows ~3× on running samples; dominant frequency drifts from 25 Hz toward the 83 Hz BPFO band; kurtosis climbs). The signal is discoverable from FFT (Chapter 2 Tier 1) and from Isolation Forest (Tier 2). Validated end-to-end: `make seed-data` writes ~5 MB of parquet for 30 days; case_summary reports the RMS gain (e.g. 13.4×).
 - `lib_comum.data_synth.schemas`: `VIBRATION_METRICS_COLUMNS` / `_DTYPES` canonical schema shared by every recipe that needs vibration roll-ups.

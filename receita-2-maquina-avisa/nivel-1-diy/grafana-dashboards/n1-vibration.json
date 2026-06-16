@@ -1,0 +1,155 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+      "description": "BPFO-band amplitude per machine (x-axis). A growing line on the press is the case-study signal.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "spanNulls": true },
+          "unit": "g"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "calcs": ["lastNotNull", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT time_bucket('30 seconds', ts) AS time, machine AS metric, AVG(amp_g) AS value FROM vibration_bands WHERE band = 'bpfo' AND axis = 'x' AND ts > NOW() - INTERVAL '15 minutes' GROUP BY 1, machine ORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "BPFO-band amplitude (x-axis) — last 15 min",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+      "description": "1x-rotation harmonic per machine. Useful to verify each machine is actually running.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 5, "lineWidth": 1 },
+          "unit": "g"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "id": 2,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT time_bucket('30 seconds', ts) AS time, machine AS metric, AVG(amp_g) AS value FROM vibration_bands WHERE band = 'rotation_1x' AND axis = 'x' AND ts > NOW() - INTERVAL '15 minutes' GROUP BY 1, machine ORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "1x rotation harmonic (x-axis) — last 15 min",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+      "description": "Latest alerts. The press should dominate this list once the BPFO band grows above baseline.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" } },
+          "mappings": [
+            { "options": { "critical": { "color": "red", "index": 0 } }, "type": "value" },
+            { "options": { "warning":  { "color": "orange", "index": 1 } }, "type": "value" },
+            { "options": { "info":     { "color": "yellow", "index": 2 } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green" }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "severity" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "id": 3,
+      "options": { "cellHeight": "sm", "footer": { "show": false }, "showHeader": true },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ts, machine, axis, band, severity, ROUND(amp_g::numeric, 4) AS amp_g, ROUND(baseline_g::numeric, 4) AS baseline_g FROM vibration_alerts WHERE ts > NOW() - INTERVAL '15 minutes' ORDER BY ts DESC LIMIT 30",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent alerts (last 15 min)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+      "description": "Spectral fingerprint of each machine — averaged BPFO vs. 1x amplitudes over the last 5 minutes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "color-background" },
+            "inspect": false
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": 0 },
+              { "color": "yellow", "value": 0.005 },
+              { "color": "orange", "value": 0.015 },
+              { "color": "red",    "value": 0.025 }
+            ]
+          },
+          "unit": "g"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 17 },
+      "id": 4,
+      "options": { "cellHeight": "sm", "footer": { "show": false }, "showHeader": true },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT machine, ROUND(AVG(CASE WHEN band='rotation_1x' THEN amp_g END)::numeric, 4) AS rotation_1x_g, ROUND(AVG(CASE WHEN band='bpfo' THEN amp_g END)::numeric, 4) AS bpfo_g FROM vibration_bands WHERE axis = 'x' AND ts > NOW() - INTERVAL '5 minutes' GROUP BY machine ORDER BY bpfo_g DESC NULLS LAST",
+          "refId": "A"
+        }
+      ],
+      "title": "Per-machine spectral fingerprint (x-axis, last 5 min)",
+      "type": "table"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["receita-2", "n1", "vibration", "fabrica-inteligente"],
+  "templating": { "list": [] },
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Receita 2 N1 — Vibração & FFT",
+  "uid": "r2-n1-vibration",
+  "version": 1,
+  "weekStart": ""
+}

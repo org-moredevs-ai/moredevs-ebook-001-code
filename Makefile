@@ -95,9 +95,21 @@ demo-r1-n2: ## Recipe 1 Tier 2 — Modbus + OEE (90s end-to-end demo)
 	    -c "CALL refresh_continuous_aggregate('machine_availability_1h', NULL, NULL);" || true
 	@echo "→ Open http://localhost:3000 — dashboard 'Receita 1 N2 — OEE & Pro'."
 
+R2_N1_DIR := receita-2-maquina-avisa/nivel-1-diy
+
 .PHONY: demo-r2
-demo-r2: ## Recipe 2 — The Machine That Warns
-	uv run python -m receita-2-maquina-avisa.nivel-1-diy.fft_alert --demo
+demo-r2: ## Recipe 2 — The Machine That Warns (60s end-to-end demo)
+	@echo "→ Make sure 'make up' is running (TimescaleDB + Mosquitto + Grafana)."
+	@echo "→ Starting vibration simulator + FFT alert receiver for 60s..."
+	uv run python $(R2_N1_DIR)/simulator/replay_to_mqtt.py \
+	    --speed-up 4320 --duration 60 --start-offset-days 17 --sample-period-s 300 & \
+	sleep 1 && \
+	uv run python $(R2_N1_DIR)/fft_alert/receiver.py \
+	    --max-runtime-seconds 65 --threshold-pct 40 \
+	    --baseline-window 30 --warmup-samples 20 \
+	    --cooldown-seconds 3 --min-amplitude-g 0.005 & \
+	wait
+	@echo "→ Open http://localhost:3000 — dashboard 'Receita 2 N1 — Vibração & FFT'."
 
 .PHONY: demo-r3
 demo-r3: ## Recipe 3 — The Quote Writer

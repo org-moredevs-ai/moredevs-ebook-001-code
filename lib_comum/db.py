@@ -158,6 +158,98 @@ async def truncate_telemetry(conn: psycopg.AsyncConnection) -> None:
     await conn.execute("TRUNCATE telemetry")
 
 
+@dataclass(frozen=True, slots=True)
+class VibrationBandRow:
+    """One row in the ``vibration_bands`` hypertable.
+
+    PT: Amostra de amplitude espectral por banda.
+    EN: One spectral-band amplitude sample.
+    """
+
+    ts: datetime
+    machine: str
+    axis: str
+    band: str
+    amp_g: float
+
+    def as_tuple(self) -> tuple[datetime, str, str, str, float]:
+        return (self.ts, self.machine, self.axis, self.band, self.amp_g)
+
+
+@dataclass(frozen=True, slots=True)
+class VibrationAlertRow:
+    """One row in the ``vibration_alerts`` hypertable.
+
+    PT: Alerta de vibração emitido pelo receiver da Receita 2.
+    EN: Vibration alert emitted by the Recipe 2 receiver.
+    """
+
+    ts: datetime
+    machine: str
+    axis: str
+    band: str
+    amp_g: float
+    baseline_g: float
+    threshold_pct: float
+    severity: str
+
+    def as_tuple(
+        self,
+    ) -> tuple[datetime, str, str, str, float, float, float, str]:
+        return (
+            self.ts,
+            self.machine,
+            self.axis,
+            self.band,
+            self.amp_g,
+            self.baseline_g,
+            self.threshold_pct,
+            self.severity,
+        )
+
+
+async def insert_vibration_bands(
+    conn: psycopg.AsyncConnection, rows: Sequence[VibrationBandRow]
+) -> int:
+    """Bulk-insert *rows* into ``vibration_bands``.
+
+    PT: Insere linhas em batch.
+    EN: Bulk-inserts the rows.
+    """
+    if not rows:
+        return 0
+    async with conn.cursor() as cur:
+        await cur.executemany(
+            "INSERT INTO vibration_bands (ts, machine, axis, band, amp_g) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            [r.as_tuple() for r in rows],
+        )
+    return len(rows)
+
+
+async def insert_vibration_alert(conn: psycopg.AsyncConnection, row: VibrationAlertRow) -> None:
+    """Insert a single :class:`VibrationAlertRow`.
+
+    PT: Insere um alerta. Volumes são baixos por construção.
+    EN: Inserts one alert. Volume is low by design.
+    """
+    await conn.execute(
+        "INSERT INTO vibration_alerts "
+        "(ts, machine, axis, band, amp_g, baseline_g, threshold_pct, severity) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+        row.as_tuple(),
+    )
+
+
+async def truncate_vibration_tables(conn: psycopg.AsyncConnection) -> None:
+    """Empty the vibration tables. Useful for tests.
+
+    PT: Esvazia as tabelas de vibração. Útil em testes.
+    EN: Empties the vibration tables. Useful in tests.
+    """
+    await conn.execute("TRUNCATE vibration_bands, vibration_alerts")
+
+
 def telemetry_rows_from_payloads(
     payloads: Iterable[dict[str, object]],
     *,

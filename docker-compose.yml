@@ -66,6 +66,7 @@ services:
       - ./lib_comum/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./receita-1-olho-da-fabrica/nivel-1-diy/grafana-dashboards:/var/lib/grafana/dashboards/receita-1-n1:ro
       - ./receita-1-olho-da-fabrica/nivel-2-pro/grafana-dashboards:/var/lib/grafana/dashboards/receita-1-n2:ro
+      - ./receita-2-maquina-avisa/nivel-1-diy/grafana-dashboards:/var/lib/grafana/dashboards/receita-2-n1:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
       interval: 10s

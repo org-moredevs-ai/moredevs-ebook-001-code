@@ -121,6 +121,11 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 ignore_missing_imports = true
+# `make lint` and CI run mypy on `lib_comum` only. Recipe scripts live in
+# hyphenated dirs (`receita-N-.../nivel-X-diy/`) which cannot form Python
+# packages, and same-named scripts across recipes (e.g. `replay_to_mqtt.py`)
+# collide if we tried to check them together. Ruff covers them statically;
+# their runtime behaviour is covered by the integration tests.
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "lib_comum", "receita-1-olho-da-fabrica", "receita-2-maquina-avisa", "receita-3-orcamentista", "receita-4-corte-sem-desperdicio", "receita-5-promessa-prazo"]

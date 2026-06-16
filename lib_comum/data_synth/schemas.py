@@ -81,6 +81,28 @@ PRODUCTION_EVENTS_DTYPES: Final[dict[str, str]] = {
     "units_rejected": "int32",
 }
 
+# Per-minute vibration roll-ups produced by the predictive-maintenance
+# sensors (Recipe 2). One row per (timestamp, machine, axis); each axis
+# (x/y/z) carries RMS, peak, kurtosis and the FFT's dominant frequency.
+VIBRATION_METRICS_COLUMNS: Final[list[str]] = [
+    "timestamp",
+    "machine_id",
+    "axis",
+    "rms_g",
+    "peak_g",
+    "kurtosis",
+    "dominant_freq_hz",
+]
+
+VIBRATION_METRICS_DTYPES: Final[dict[str, str]] = {
+    "machine_id": "string",
+    "axis": "category",
+    "rms_g": "float32",
+    "peak_g": "float32",
+    "kurtosis": "float32",
+    "dominant_freq_hz": "float32",
+}
+
 
 def apply_dtypes(df: pd.DataFrame, dtypes: dict[str, str]) -> pd.DataFrame:
     """Apply canonical dtypes to a DataFrame in place and return it.

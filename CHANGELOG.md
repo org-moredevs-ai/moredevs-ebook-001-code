@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Recipe 1 Tier 3 (Premium) — reference architecture.** PT and EN READMEs with the multi-site / Edge AI / ERP integration diagram, sizing guidance for the data lake, ERP-specific connector strategy (Primavera, PHC, Sage X3, SAP B1), and the NIS2 + EU AI Act + IATF 16949 / ISO 9001 / FSSC 22000 obligations relevant at this tier. Plus the consultancy ladder (diagnostic → pilot → multi-site → retainer) and EU funding pointers.
+- **Recipe 2 foundation — `moldes` synthetic dataset.** `lib_comum.data_synth.moldes` generates a Marinha Grande mould-making roster (1× 250 t press, 3× CNC mills, 2× EDMs) over 30 days. Beyond the usual `machine_states` / `sensor_readings` / `production_events`, it produces a new `vibration_metrics` table — per-minute, 3-axis RMS / peak / kurtosis / dominant_freq_hz. The fault-seeded press-1 develops a bearing wear signal over the last 12 days (RMS grows ~3× on running samples; dominant frequency drifts from 25 Hz toward the 83 Hz BPFO band; kurtosis climbs). The signal is discoverable from FFT (Chapter 2 Tier 1) and from Isolation Forest (Tier 2). Validated end-to-end: `make seed-data` writes ~5 MB of parquet for 30 days; case_summary reports the RMS gain (e.g. 13.4×).
+- `lib_comum.data_synth.schemas`: `VIBRATION_METRICS_COLUMNS` / `_DTYPES` canonical schema shared by every recipe that needs vibration roll-ups.
+- `tools.seed_synth_data --all` now generates `moldes` too.
+- Tests: 11 new tests in `tests/test_data_synth_moldes.py` covering schema, determinism, case-study signal isolation (signal climbs only on the press), dominant-frequency drift, fault event placement, and family-aware production rates. The 4 tests that need the full 30-day dataset (~30 s of generation) are tagged `slow` and excluded from `make test`.
+
+### Changed
+- `make test` excludes `slow` (now ~12 s for the fast suite); `make test-slow` runs the long tests too. CI runs the fast subset.
+- CI mypy and pytest steps are no longer `continue-on-error`; lib_comum is mature enough to enforce both.
+
 - **Recipe 1 Tier 2 (Pro) — Modbus pipeline and OEE end-to-end.**
   - `lib_comum.plc_sim.state_clock.SimClock`: shared compressed-time clock used by every PLC emulator, so emulators (Modbus today, OPC-UA next) share a single logical timeline.
   - `lib_comum.plc_sim.modbus_emulator`: pymodbus 3.13-based async Modbus TCP server. Pretends to be N PLCs (default 5) on a single port, addressed by `device_id` 1..N. Per-machine `SimAction` callback writes register values from the alimentar dataset on every read — so the collector sees realistic, time-correlated state, shift counter, internal temperature and ambient temperature.

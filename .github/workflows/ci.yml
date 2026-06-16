@@ -43,8 +43,6 @@ jobs:
 
       - name: Mypy
         run: uv run mypy lib_comum
-        continue-on-error: true  # relax until lib_comum is populated
 
-      - name: Pytest (unit only)
-        run: uv run pytest -m "not integration" --cov=lib_comum --cov-report=term-missing
-        continue-on-error: true  # relax until tests exist
+      - name: Pytest (fast unit tests)
+        run: uv run pytest -m "not integration and not slow" --cov=lib_comum --cov-report=term-missing

@@ -18,8 +18,9 @@ import argparse
 import sys
 from collections.abc import Iterable
 from pathlib import Path
+from types import ModuleType
 
-from lib_comum.data_synth import alimentar
+from lib_comum.data_synth import alimentar, moldes
 from lib_comum.data_synth.base import DEFAULT_SEED
 
 REPO_ROOT: Path = Path(__file__).resolve().parent.parent
@@ -34,12 +35,15 @@ RECIPE_DIRS: dict[int, str] = {
 
 SECTORS_BY_RECIPE: dict[int, list[str]] = {
     1: ["alimentar"],  # metalomecanica + textil land in a subsequent iteration
+    2: ["moldes"],  # metalomecanica + papel land in a subsequent iteration
 }
 
 
-def _generator(sector: str):
+def _generator(sector: str) -> ModuleType:
     if sector == "alimentar":
         return alimentar
+    if sector == "moldes":
+        return moldes
     raise ValueError(f"Unknown sector: {sector}")
 
 

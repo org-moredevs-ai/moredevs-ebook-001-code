@@ -114,7 +114,11 @@ demo-r5: ## Recipe 5 — The Delivery Promise
 ##@ Quality
 
 .PHONY: test
-test: ## Run unit tests
+test: ## Run unit tests (excludes integration + slow)
+	uv run pytest -m "not integration and not slow"
+
+.PHONY: test-slow
+test-slow: ## Run unit tests including the slow ones (full datasets)
 	uv run pytest -m "not integration"
 
 .PHONY: test-integration

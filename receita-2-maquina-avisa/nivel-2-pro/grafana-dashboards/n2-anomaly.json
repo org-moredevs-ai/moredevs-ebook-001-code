@@ -1,0 +1,159 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+      "description": "Worst Isolation Forest anomaly score per machine over the last 15 min. Lower is more anomalous (negative = outlier).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": -10 },
+              { "color": "orange", "value": -0.1 },
+              { "color": "yellow", "value": -0.05 },
+              { "color": "green", "value": 0 }
+            ]
+          },
+          "unit": "short",
+          "min": -0.4,
+          "max": 0.2
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "minVizWidth": 200,
+        "minVizHeight": 50
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT machine, MIN(baseline_g)::float AS worst_score FROM vibration_alerts WHERE band='anomaly' AND ts > NOW() - INTERVAL '15 minutes' GROUP BY machine ORDER BY worst_score ASC LIMIT 10",
+          "refId": "A"
+        }
+      ],
+      "title": "Worst anomaly score per machine — last 15 min",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+      "description": "Per-machine BPFO amplitude (band_bpfo_g from vibration_features). The press should stand out.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 5, "lineWidth": 2 },
+          "unit": "g"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
+      "id": 2,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT time_bucket('30 seconds', ts) AS time, machine AS metric, AVG(band_bpfo_g) AS value FROM vibration_features WHERE axis='x' AND ts > NOW() - INTERVAL '15 minutes' GROUP BY 1, machine ORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "BPFO amplitude per machine (x-axis) — last 15 min",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+      "description": "Crest factor per machine — climbs as bearing impulses appear (RMS stays similar, peaks grow).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 5, "lineWidth": 2 },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 9 },
+      "id": 3,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT time_bucket('30 seconds', ts) AS time, machine AS metric, AVG(crest_factor) AS value FROM vibration_features WHERE axis='x' AND ts > NOW() - INTERVAL '15 minutes' GROUP BY 1, machine ORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Crest factor per machine — last 15 min",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+      "description": "Latest anomaly alerts. Severity escalates as the Isolation Forest score drops further below the threshold.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto" },
+          "mappings": [
+            { "options": { "critical": { "color": "red", "index": 0 } }, "type": "value" },
+            { "options": { "warning":  { "color": "orange", "index": 1 } }, "type": "value" },
+            { "options": { "info":     { "color": "yellow", "index": 2 } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green" }] }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "severity" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 18 },
+      "id": 4,
+      "options": { "cellHeight": "sm", "footer": { "show": false }, "showHeader": true },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ts, machine, severity, ROUND(baseline_g::numeric, 3) AS anomaly_score, ROUND(amp_g::numeric, 4) AS bpfo_amp_g FROM vibration_alerts WHERE band='anomaly' AND ts > NOW() - INTERVAL '15 minutes' ORDER BY ts DESC LIMIT 40",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent anomaly alerts (last 15 min)",
+      "type": "table"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["receita-2", "n2", "anomaly", "isolation-forest", "fabrica-inteligente"],
+  "templating": { "list": [] },
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Receita 2 N2 — Anomalia (Isolation Forest)",
+  "uid": "r2-n2-anomaly",
+  "version": 1,
+  "weekStart": ""
+}

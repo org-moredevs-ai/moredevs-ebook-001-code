@@ -111,6 +111,25 @@ demo-r2: ## Recipe 2 — The Machine That Warns (60s end-to-end demo)
 	wait
 	@echo "→ Open http://localhost:3000 — dashboard 'Receita 2 N1 — Vibração & FFT'."
 
+R2_N2_DIR := receita-2-maquina-avisa/nivel-2-pro
+
+.PHONY: demo-r2-n2
+demo-r2-n2: ## Recipe 2 Tier 2 — Isolation Forest anomaly detector (75s end-to-end demo)
+	@echo "→ Make sure 'make up' is running (TimescaleDB + Mosquitto + Grafana)."
+	@echo "→ Starting vibration simulator + feature extractor + IF detector for ~75s..."
+	@echo "→ Warmup covers 4 healthy days before the wear window starts."
+	uv run python $(R2_N1_DIR)/simulator/replay_to_mqtt.py \
+	    --speed-up 14400 --duration 70 --start-offset-days 14 --sample-period-s 300 & \
+	sleep 1 && \
+	uv run python $(R2_N2_DIR)/feature_extractor/extractor.py \
+	    --max-runtime-seconds 75 & \
+	sleep 2 && \
+	uv run python $(R2_N2_DIR)/isoforest_detector/detector.py \
+	    --max-runtime-seconds 75 --warmup-window 20 \
+	    --alert-threshold 0.0 --cooldown-seconds 3 & \
+	wait
+	@echo "→ Open http://localhost:3000 — dashboard 'Receita 2 N2 — Anomalia (Isolation Forest)'."
+
 .PHONY: demo-r3
 demo-r3: ## Recipe 3 — The Quote Writer
 	uv run streamlit run receita-3-orcamentista/nivel-1-diy/app.py

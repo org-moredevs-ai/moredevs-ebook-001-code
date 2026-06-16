@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Recipe 2 Tier 2 (Pro) — Isolation Forest anomaly detection + multi-channel alerts.** Real end-to-end ML pipeline on top of the Tier 1 raw-vibration feed.
+  - `lib_comum.alerting`: Apprise wrapper resolving `APPRISE_URLS` (Telegram, email, Slack, MS Teams). Degrades gracefully (log-only) when nothing is configured, so demos and tests stay deterministic.
+  - `lib_comum/sql/init/05_vibration_features.sql`: new `vibration_features` hypertable (rms, peak, crest, kurtosis, dominant freq, 1× band, BPFO band, plus optional `anomaly_score`). Daily chunks + 7-day compression.
+  - `lib_comum.db`: `VibrationFeatureRow` + `insert_vibration_features` helpers. `truncate_vibration_tables` now empties the new table too.
+  - `receita-2-.../nivel-2-pro/feature_extractor/extractor.py`: stateless MQTT subscriber that runs FFT + statistics per snapshot, persists 21 features (7 × 3 axes) to `vibration_features`, and re-publishes the same vectors on `fabrica/<line>/<machine>/vibration-features` so multiple downstream models can consume them in parallel.
+  - `receita-2-.../nivel-2-pro/isoforest_detector/detector.py`: per-machine IsolationForest (`n_estimators=80`, `contamination=0.05`). Warms up on the first 20 healthy snapshots, **freezes** the model (the default `--refit-every 0` prevents slow wear from being absorbed as the new normal), then scores every new vector. Negative scores below `--alert-threshold` fire alerts into `vibration_alerts` with `band='anomaly'` plus an Apprise dispatch with severity-scaled escalation.
+  - `receita-2-.../nivel-2-pro/grafana-dashboards/n2-anomaly.json`: 4-panel dashboard (worst score per machine as a gauge, BPFO timeseries, crest-factor timeseries, recent alerts table) auto-provisioned via `docker-compose.yml`.
+  - `make demo-r2-n2`: orchestrates simulator + extractor + detector for ~75 s (14 400× speed-up so the full 12-day wear arc — plus 4 healthy days of warmup — plays out in just over a minute).
+  - `tests/test_r2_n2_e2e.py`: integration test asserting features land, the press dominates "warning" severity by at least 3× the next machine, and the most-anomalous score belongs to the press. Passes in ~63 s.
+  - PT and EN READMEs covering the architecture, the 21-feature vector, why the model is frozen by default, Apprise wiring, and Tier 2 limits.
+
 - **Recipe 2 Tier 1 (DIY) — ESP32 + ADXL345 vibration pipeline + Python FFT alerts.** Real end-to-end implementation of the Chapter 2 case study (Marinha Grande moulds, press-1 bearing developing a fault over 11+ days).
   - `lib_comum.plc_sim.vibration_signal`: deterministic 1-second 3-axis waveform synthesiser at 1 kHz. Healthy machines carry the 1× rotation harmonic + low-frequency noise; the fault-seeded press also gets a growing BPFO sinusoid, amplitude-modulated sidebands at BPFO ± rotation, and exponentially-decaying impulses at the bearing rate.
   - `lib_comum.plc_sim.vibration_signal.compute_spectrum_band_amp`: convenience that runs `numpy.fft.rfft` and returns the RMS amplitude in a band; reused by the receiver and the tests.

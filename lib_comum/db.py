@@ -247,7 +247,66 @@ async def truncate_vibration_tables(conn: psycopg.AsyncConnection) -> None:
     PT: Esvazia as tabelas de vibração. Útil em testes.
     EN: Empties the vibration tables. Useful in tests.
     """
-    await conn.execute("TRUNCATE vibration_bands, vibration_alerts")
+    await conn.execute("TRUNCATE vibration_bands, vibration_alerts, vibration_features")
+
+
+@dataclass(frozen=True, slots=True)
+class VibrationFeatureRow:
+    """One row in the ``vibration_features`` hypertable.
+
+    PT: Vector de features extraído de um snapshot de vibração.
+    EN: Feature vector extracted from one vibration snapshot.
+    """
+
+    ts: datetime
+    machine: str
+    axis: str
+    rms_g: float
+    peak_g: float
+    crest_factor: float
+    kurtosis: float
+    dominant_freq_hz: float
+    band_rotation_1x_g: float
+    band_bpfo_g: float
+    anomaly_score: float | None = None
+
+    def as_tuple(
+        self,
+    ) -> tuple[datetime, str, str, float, float, float, float, float, float, float, float | None]:
+        return (
+            self.ts,
+            self.machine,
+            self.axis,
+            self.rms_g,
+            self.peak_g,
+            self.crest_factor,
+            self.kurtosis,
+            self.dominant_freq_hz,
+            self.band_rotation_1x_g,
+            self.band_bpfo_g,
+            self.anomaly_score,
+        )
+
+
+async def insert_vibration_features(
+    conn: psycopg.AsyncConnection, rows: Sequence[VibrationFeatureRow]
+) -> int:
+    """Bulk-insert *rows* into ``vibration_features``.
+
+    PT: Insere features em batch.
+    EN: Bulk-inserts feature rows.
+    """
+    if not rows:
+        return 0
+    async with conn.cursor() as cur:
+        await cur.executemany(
+            "INSERT INTO vibration_features "
+            "(ts, machine, axis, rms_g, peak_g, crest_factor, kurtosis, "
+            "dominant_freq_hz, band_rotation_1x_g, band_bpfo_g, anomaly_score) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            [r.as_tuple() for r in rows],
+        )
+    return len(rows)
 
 
 def telemetry_rows_from_payloads(

@@ -131,8 +131,15 @@ demo-r2-n2: ## Recipe 2 Tier 2 — Isolation Forest anomaly detector (75s end-to
 	@echo "→ Open http://localhost:3000 — dashboard 'Receita 2 N2 — Anomalia (Isolation Forest)'."
 
 .PHONY: demo-r3
-demo-r3: ## Recipe 3 — The Quote Writer
-	uv run streamlit run receita-3-orcamentista/nivel-1-diy/app.py
+demo-r3: ## Recipe 3 — The Quote Writer (Streamlit UI)
+	@echo "→ Opens the Streamlit UI on http://localhost:8501"
+	@echo "→ Set ANTHROPIC_API_KEY for the live Claude path; otherwise it falls back to the offline regex provider."
+	uv run streamlit run receita-3-orcamentista/nivel-1-diy/quote_writer/app.py
+
+.PHONY: demo-r3-cli
+demo-r3-cli: ## Recipe 3 — Quote writer CLI (no UI, offline provider by default)
+	LLM_PROVIDER=$${LLM_PROVIDER:-offline} \
+	uv run python receita-3-orcamentista/nivel-1-diy/quote_writer/pipeline.py --provider $${LLM_PROVIDER:-offline}
 
 .PHONY: demo-r4
 demo-r4: ## Recipe 4 — The Cut That Doesn't Waste

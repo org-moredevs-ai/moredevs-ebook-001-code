@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Recipe 2 Tier 3 (Premium) — reference architecture.** PT and EN READMEs with the multi-site, edge-AI and CMMS-integration diagram, autoencoder per family rationale, supervised classifier scope, RUL approach ladder (threshold → SVR/XGBoost → LSTM → physics), CMMS connectors (Infraspeak, Mainsim, SAP PM), EU AI Act compliance touchpoints (Art. 11 / 12 / 72), and the consultancy ladder.
+- **Recipe 3 Tier 1 (DIY) — RFQ → Quote pipeline (offline + Anthropic).** Closes the first nail of Chapter 3: an LLM-backed quote writer for a sheet-metal / metalwork shop in PT-PT.
+  - `lib_comum.data_synth.rfq`: synthetic RFQ generator producing realistic PT-PT messages across three channels (formal email, WhatsApp, web form) with ground-truth line items. Includes a 58-row price catalogue covering 7 operations × 6 materials × 4 thicknesses (corte_laser, dobragem, soldadura, furacao, rebarbagem, pintura_epoxy, montagem).
+  - `lib_comum.llm`: provider-agnostic extraction interface. `AnthropicProvider` (Sonnet 4.6 by default, JSON-only prompt, audit metadata) and `OfflineProvider` (regex-based) implement the same `extract_rfq()` contract. `make_provider()` resolves from env (`LLM_PROVIDER`, `ANTHROPIC_API_KEY`, `LLM_MODEL`) with graceful fallback to offline when no key is configured.
+  - `lib_comum.quote_pricing`: pricing engine with hierarchical catalogue lookup (exact → material → thickness-nearest → operation-only), margin + VAT totals, unresolved-item tracking, and a plain-text quote renderer ready for email / PDF.
+  - `receita-3-.../nivel-1-diy/quote_writer/pipeline.py`: CLI orchestrator combining extraction + pricing + render. Reads RFQ from `--rfq-file` or generates a synthetic sample for demos.
+  - `receita-3-.../nivel-1-diy/quote_writer/app.py`: Streamlit review UI with side-by-side extraction and quote tables, margin/VAT sliders, provider switch, downloadable plain-text quote.
+  - `tests/test_r3_n1_offline.py`: 8 tests covering catalogue shape, offline accuracy ≥80% line-item match, deadline and customer (form-channel) extraction, manual pricing arithmetic, unresolved-item logging, text rendering, and the `make_provider()` fallback when the API key is missing.
+  - Makefile: `make demo-r3` (Streamlit) and `make demo-r3-cli` (CLI with offline default).
+  - PT and EN READMEs covering BOM, demo, catalogue model, per-quote cost (~€0.05), and Tier 1 limits.
+
 - **Recipe 2 Tier 2 (Pro) — Isolation Forest anomaly detection + multi-channel alerts.** Real end-to-end ML pipeline on top of the Tier 1 raw-vibration feed.
   - `lib_comum.alerting`: Apprise wrapper resolving `APPRISE_URLS` (Telegram, email, Slack, MS Teams). Degrades gracefully (log-only) when nothing is configured, so demos and tests stay deterministic.
   - `lib_comum/sql/init/05_vibration_features.sql`: new `vibration_features` hypertable (rms, peak, crest, kurtosis, dominant freq, 1× band, BPFO band, plus optional `anomaly_score`). Daily chunks + 7-day compression.

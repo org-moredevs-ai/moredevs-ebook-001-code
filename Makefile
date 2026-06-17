@@ -93,6 +93,8 @@ demo-r1-n2: ## Recipe 1 Tier 2 — Modbus + OEE (90s end-to-end demo)
 	docker compose exec -T timescaledb psql -U fabrica -d fabrica \
 	    -c "CALL refresh_continuous_aggregate('machine_availability_1m', NULL, NULL);" \
 	    -c "CALL refresh_continuous_aggregate('machine_availability_1h', NULL, NULL);" || true
+	@echo "→ Evaluating Tier 2 alert rules once (stopped machines + low availability)..."
+	uv run python $(R1_N2_DIR)/alerting/rules.py --once --idle-minutes 1 || true
 	@echo "→ Open http://localhost:3000 — dashboard 'Receita 1 N2 — OEE & Pro'."
 
 R2_N1_DIR := receita-2-maquina-avisa/nivel-1-diy
@@ -140,6 +142,16 @@ demo-r3: ## Recipe 3 — The Quote Writer (Streamlit UI)
 demo-r3-cli: ## Recipe 3 — Quote writer CLI (no UI, offline provider by default)
 	LLM_PROVIDER=$${LLM_PROVIDER:-offline} \
 	uv run python receita-3-orcamentista/nivel-1-diy/quote_writer/pipeline.py --provider $${LLM_PROVIDER:-offline}
+
+.PHONY: demo-r3-n2
+demo-r3-n2: ## Recipe 3 Tier 2 — review pipeline with quote memory (offline by default)
+	LLM_PROVIDER=$${LLM_PROVIDER:-offline} \
+	uv run python receita-3-orcamentista/nivel-2-pro/quote_review/pipeline.py --provider $${LLM_PROVIDER:-offline}
+
+.PHONY: demo-r3-n2-ui
+demo-r3-n2-ui: ## Recipe 3 Tier 2 — human review UI (Streamlit)
+	@echo "→ Opens the review UI on http://localhost:8501 (Aprovar / Rejeitar)."
+	uv run streamlit run receita-3-orcamentista/nivel-2-pro/quote_review/app.py
 
 .PHONY: demo-r4
 demo-r4: ## Recipe 4 — The Cut That Doesn't Waste

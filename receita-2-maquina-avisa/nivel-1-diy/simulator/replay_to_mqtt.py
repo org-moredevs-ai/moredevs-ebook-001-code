@@ -23,7 +23,7 @@ import argparse
 import logging
 import sys
 import time
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -106,7 +106,15 @@ def run(
     seed: int,
 ) -> int:
     """Replay loop. Returns the number of MQTT publishes issued."""
-    period_end = default_period_end_from_window(days=days)
+    # PT: Ancorar o período para o replay ACABAR ~agora (dados recentes no dashboard),
+    # preservando a forma da curva de desgaste — é só um deslocamento constante de toda
+    # a linha temporal. EN: anchor the period so the replay ENDS ~now (recent data on the
+    # dashboard) while preserving the wear-curve shape — a constant shift of the timeline.
+    if duration_s is not None:
+        replay_span = timedelta(seconds=duration_s * speed_up)
+        period_end = datetime.now(UTC) + timedelta(days=days - start_offset_days) - replay_span
+    else:
+        period_end = default_period_end_from_window(days=days)
     period_start = period_end - timedelta(days=days)
     sim_start = period_start + timedelta(days=start_offset_days)
 

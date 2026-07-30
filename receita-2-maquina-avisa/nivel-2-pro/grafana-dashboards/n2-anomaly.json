@@ -8,7 +8,7 @@
   "panels": [
     {
       "datasource": { "type": "postgres", "uid": "TimescaleDB" },
-      "description": "Worst Isolation Forest anomaly score per machine over the last 15 min. Lower is more anomalous (negative = outlier).",
+      "description": "Worst Isolation Forest anomaly score per machine over the dashboard range. Lower is more anomalous (negative = outlier).",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -42,11 +42,11 @@
           "datasource": { "type": "postgres", "uid": "TimescaleDB" },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT machine, MIN(baseline_g)::float AS worst_score FROM vibration_alerts WHERE band='anomaly' AND ts > NOW() - INTERVAL '15 minutes' GROUP BY machine ORDER BY worst_score ASC LIMIT 10",
+          "rawSql": "SELECT machine, MIN(baseline_g)::float AS worst_score FROM vibration_alerts WHERE band='anomaly' AND $__timeFilter(ts) GROUP BY machine ORDER BY worst_score ASC LIMIT 10",
           "refId": "A"
         }
       ],
-      "title": "Worst anomaly score per machine — last 15 min",
+      "title": "Worst anomaly score per machine — dashboard range",
       "type": "gauge"
     },
     {
@@ -71,11 +71,11 @@
           "datasource": { "type": "postgres", "uid": "TimescaleDB" },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_bucket('30 seconds', ts) AS time, machine AS metric, AVG(band_bpfo_g) AS value FROM vibration_features WHERE axis='x' AND ts > NOW() - INTERVAL '15 minutes' GROUP BY 1, machine ORDER BY 1",
+          "rawSql": "SELECT time_bucket('30 seconds', ts) AS time, machine AS metric, AVG(band_bpfo_g) AS value FROM vibration_features WHERE axis='x' AND $__timeFilter(ts) GROUP BY 1, machine ORDER BY 1",
           "refId": "A"
         }
       ],
-      "title": "BPFO amplitude per machine (x-axis) — last 15 min",
+      "title": "BPFO amplitude per machine (x-axis) — dashboard range",
       "type": "timeseries"
     },
     {
@@ -100,11 +100,11 @@
           "datasource": { "type": "postgres", "uid": "TimescaleDB" },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_bucket('30 seconds', ts) AS time, machine AS metric, AVG(crest_factor) AS value FROM vibration_features WHERE axis='x' AND ts > NOW() - INTERVAL '15 minutes' GROUP BY 1, machine ORDER BY 1",
+          "rawSql": "SELECT time_bucket('30 seconds', ts) AS time, machine AS metric, AVG(crest_factor) AS value FROM vibration_features WHERE axis='x' AND $__timeFilter(ts) GROUP BY 1, machine ORDER BY 1",
           "refId": "A"
         }
       ],
-      "title": "Crest factor per machine — last 15 min",
+      "title": "Crest factor per machine — dashboard range",
       "type": "timeseries"
     },
     {
@@ -137,11 +137,11 @@
           "datasource": { "type": "postgres", "uid": "TimescaleDB" },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT ts, machine, severity, ROUND(baseline_g::numeric, 3) AS anomaly_score, ROUND(amp_g::numeric, 4) AS bpfo_amp_g FROM vibration_alerts WHERE band='anomaly' AND ts > NOW() - INTERVAL '15 minutes' ORDER BY ts DESC LIMIT 40",
+          "rawSql": "SELECT ts, machine, severity, ROUND(baseline_g::numeric, 3) AS anomaly_score, ROUND(amp_g::numeric, 4) AS bpfo_amp_g FROM vibration_alerts WHERE band='anomaly' AND $__timeFilter(ts) ORDER BY ts DESC LIMIT 40",
           "refId": "A"
         }
       ],
-      "title": "Recent anomaly alerts (last 15 min)",
+      "title": "Recent anomaly alerts (dashboard range)",
       "type": "table"
     }
   ],
@@ -149,7 +149,7 @@
   "schemaVersion": 39,
   "tags": ["receita-2", "n2", "anomaly", "isolation-forest", "fabrica-inteligente"],
   "templating": { "list": [] },
-  "time": { "from": "now-15m", "to": "now" },
+  "time": { "from": "now-14d", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
   "title": "Receita 2 N2 — Anomalia (Isolation Forest)",

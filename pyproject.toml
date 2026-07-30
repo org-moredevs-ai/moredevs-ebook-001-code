@@ -43,6 +43,7 @@ dependencies = [
     "paho-mqtt>=2.1",
     # Alerting
     "apprise>=1.9",
+    "streamlit-drawable-canvas>=0.9.3",
 ]
 
 [project.optional-dependencies]

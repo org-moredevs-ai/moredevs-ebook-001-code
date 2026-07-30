@@ -67,19 +67,28 @@ SHIFT_HOURS: Final[dict[str, tuple[int, int]]] = {
 
 # Probability mass for state transitions during a normal operating shift.
 STATE_WEIGHTS: Final[dict[str, float]] = {
-    "running": 0.78,
+    "running": 0.815,
     "idle": 0.08,
     "setup": 0.05,
     "cleaning": 0.04,
-    "stopped": 0.04,
-    "fault": 0.01,
+    "stopped": 0.02,
+    "fault": 0.005,
 }
 
 THERMAL_THRESHOLD_C: Final[float] = 27.0
 """Ambient temperature above which line-3 protection kicks in."""
 
-THERMAL_EXTRA_STOPS_PER_TARDE_HOT_DAY: Final[tuple[int, int]] = (2, 3)
-"""Range of additional thermal-protection stoppages per hot afternoon."""
+THERMAL_EXTRA_STOPS_PER_TARDE_HOT_DAY: Final[tuple[int, int]] = (7, 10)
+"""Range of thermal-protection stoppages on a hot line-3 summer afternoon."""
+
+AMBIENT_MICRO_OFFSET_C: Final[dict[str, float]] = {
+    "linha-1": -0.6,
+    "linha-2": 0.4,
+    "linha-4": 0.1,
+    "linha-5": -0.3,
+}
+"""Tiny per-line microclimate offsets so the non-thermal lines render as distinct
+traces (instead of one overlapping line) on the dashboard. All stay well below 27 °C."""
 
 
 # ---------------------------------------------------------------------------
@@ -113,17 +122,23 @@ def _daily_temp_profile(start: datetime, days: int, rng: np.random.Generator) ->
     rows: list[dict[str, object]] = []
     for d in range(days):
         day = start + timedelta(days=d)
-        base = 21.0 + rng.normal(0, 2.0)  # daily mean
-        amplitude = 4.0 + rng.normal(0, 1.0)  # daily swing
-        heat_wave = rng.random() < 0.40  # 40% hot days
-        peak = base + amplitude + (rng.uniform(2.0, 5.0) if heat_wave else 0.0)
+        base = 20.0 + rng.normal(0, 1.0)  # daily mean on the shop floor
+        amplitude = 4.0 + rng.normal(0, 0.6)  # daily swing
+        # Peak of a Ribatejo summer: most afternoons are hot. The first and last few
+        # days are always hot so both demos reliably show the signal — demo-r1 replays
+        # near the end, demo-r1-n2's emulator sweeps from the start (day 0).
+        heat_wave = (d == 0) or (d >= days - 3) or (rng.random() < 0.6)
+        # The shared floor stays comfortable (peaks ~24 °C) even on hot days: the heat
+        # that trips line 3 is *local* to its spot by the cold-chain condenser and is
+        # modelled per line in `_ambient_temp_series`, not baked into the floor peak.
+        peak = base + amplitude
         rows.append(
             {
                 "date": day.date(),
                 "mean_c": round(base, 2),
                 "amplitude_c": round(amplitude, 2),
                 "peak_c": round(peak, 2),
-                "hot_day": heat_wave or peak > THERMAL_THRESHOLD_C,
+                "hot_day": heat_wave,
             }
         )
     return pd.DataFrame(rows)
@@ -134,8 +149,12 @@ def _ambient_temp_series(
 ) -> pd.DataFrame:
     """5-minute ambient temperature readings for each line.
 
-    All lines share the same ambient (same building) but line 3 sits next
-    to the cold-chain unit, so it reads ~2 °C higher than the rest.
+    The shop floor shares one comfortable ambient (peaks ~24 °C). Line 3 sits
+    beside the cold-chain condenser, which vents heat: on hot summer afternoons
+    its local ambient surges several degrees above the rest of the floor,
+    climbing past 27 °C — the signal the reader correlates with the protective
+    stops in Chapter 1. The other lines carry tiny microclimate offsets so they
+    render as distinct traces, all staying well below 27 °C.
     """
     rows: list[dict[str, object]] = []
     step = timedelta(minutes=5)
@@ -148,13 +167,19 @@ def _ambient_temp_series(
             continue
         mean_c = float(profile_by_date.at[day, "mean_c"])
         peak_c = float(profile_by_date.at[day, "peak_c"])
-        # Sinusoid peaking at ~17h local
+        hot_day = bool(profile_by_date.at[day, "hot_day"])
+        # Sinusoid: 0 at 06h, peaks around midday, back to 0 by 18h.
         hour = t.hour + t.minute / 60.0
-        diurnal = np.sin(np.pi * (hour - 6) / 12.0)
-        base_value = mean_c + (peak_c - mean_c) * max(0.0, diurnal)
-        noise = rng.normal(0, 0.4)
-        for line in LINES:
-            offset = 2.0 if line == "linha-3" else 0.0
+        heat = max(0.0, np.sin(np.pi * (hour - 6) / 12.0))
+        base_value = mean_c + (peak_c - mean_c) * heat
+        for line, cfg in LINES.items():
+            if cfg["thermal_sensitive"]:
+                # Base +2 °C from the condenser, plus a strong daytime surge on hot
+                # days that carries line 3 alone past the 27 °C threshold.
+                offset = 2.0 + (5.0 * heat if hot_day else 0.0)
+            else:
+                offset = AMBIENT_MICRO_OFFSET_C.get(line, 0.0)
+            noise = rng.normal(0, 0.3)  # independent per-sensor noise
             rows.append(
                 {
                     "timestamp": t,
@@ -239,7 +264,9 @@ def _generate_machine_shift(
         )
         t += timedelta(seconds=duration)
 
-    # Inject the case-study signal: thermal protection on line-3, tarde, hot days.
+    # Inject the case-study signal: line-3 (cold-chain packing) trips on thermal
+    # protection on hot summer afternoons, when ambient on line 3 climbs past 27 C —
+    # the temperature correlation the reader discovers in Chapter 1.
     is_thermal_sensitive = LINES[line]["thermal_sensitive"]
     if is_thermal_sensitive and shift == "tarde" and is_hot_day:
         low, high = THERMAL_EXTRA_STOPS_PER_TARDE_HOT_DAY
@@ -253,7 +280,7 @@ def _generate_machine_shift(
                     "machine_id": machine_id,
                     "state": "stopped",
                     "state_reason": "thermal_protection",
-                    "duration_s": int(rng.integers(120, 240)),
+                    "duration_s": int(rng.integers(150, 300)),
                 }
             )
     return events

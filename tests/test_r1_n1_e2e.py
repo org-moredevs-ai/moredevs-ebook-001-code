@@ -16,7 +16,6 @@ import asyncio
 import os
 import socket
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -95,7 +94,6 @@ async def test_e2e_simulator_to_timescale(
 ) -> None:
     """Simulator → MQTT → ingest → TimescaleDB round-trip."""
 
-    started_at = datetime.now(UTC)
     data_dir = REPO_ROOT / "receita-1-olho-da-fabrica" / "data-exemplo" / "alimentar"
     assert (data_dir / "machine_states.parquet").exists(), (
         "Run `make seed-data` first to produce the synthetic dataset."
@@ -113,6 +111,10 @@ async def test_e2e_simulator_to_timescale(
                 "600",
                 "--duration",
                 "12",
+                # Match the demo's rate so the ingest keeps up (avoids QueueFull, which
+                # would otherwise drop the most recent samples).
+                "--sample-period",
+                "20",
                 "--limit-machines",
                 "3",
             ],
@@ -133,7 +135,10 @@ async def test_e2e_simulator_to_timescale(
 
     async with aconnect(default_dsn()) as conn:
         await conn.set_autocommit(True)
-        total = await count_rows(conn, since=started_at)
+        # `clean_db` truncates telemetry, so every row is from this run. The simulator
+        # spreads timestamps across a recent window (ending ~now), so we count all rows
+        # rather than only those newer than a start marker.
+        total = await count_rows(conn)
         states = await fetch_recent_state(conn, window="2 minutes")
 
     assert total > 0, "Expected rows in telemetry after end-to-end run"

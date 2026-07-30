@@ -61,13 +61,16 @@ seed-data: ## Generate synthetic data for all recipes
 R1_N1_DIR := receita-1-olho-da-fabrica/nivel-1-diy
 
 .PHONY: demo-r1
-demo-r1: ## Recipe 1 — The Eye on the Floor (90s end-to-end demo)
+demo-r1: ## Recipe 1 — The Eye on the Floor (~2.5 min: replays ~1 day of telemetry)
 	@echo "→ Make sure 'make up' is running (TimescaleDB + Mosquitto + Grafana)."
-	@echo "→ Starting simulator + ingest in parallel for 90s..."
+	@echo "→ Replaying ~1 day (1h = 6s) — line 3 (packing) vs lines 1 & 2, so the"
+	@echo "  afternoon thermal stoppages on line 3 stand out, just like the field case…"
 	uv run python $(R1_N1_DIR)/simulator/replay_to_mqtt.py \
-	    --speed-up 600 --duration 80 --limit-machines 5 & \
+	    --speed-up 600 --duration 144 --sample-period 20 \
+	    --machine linha-3.maquina-1 --machine linha-3.maquina-2 \
+	    --machine linha-1.maquina-1 --machine linha-2.maquina-1 & \
 	uv run python $(R1_N1_DIR)/ingest/mqtt_to_db.py \
-	    --max-runtime-seconds 90 & \
+	    --max-runtime-seconds 155 & \
 	wait
 	@echo "→ Open http://localhost:3000 (admin/admin) — dashboard 'Receita 1 N1 — Olho da fábrica'."
 
@@ -76,16 +79,18 @@ R1_N2_DIR := receita-1-olho-da-fabrica/nivel-2-pro
 .PHONY: demo-r1-n2
 demo-r1-n2: ## Recipe 1 Tier 2 — Modbus + OEE (90s end-to-end demo)
 	@echo "→ Make sure 'make up' is running (TimescaleDB + Mosquitto + Grafana)."
-	@echo "→ Starting Modbus emulator (5 PLCs) + collector for 90s..."
+	@echo "→ Modbus emulator + collector — line 3 (packing) vs lines 1 & 2, so the OEE"
+	@echo "  and the ambient temperature > 27 C on line 3 tell the field-case story…"
 	uv run python -m lib_comum.plc_sim.modbus_emulator \
-	    --port 1502 --speed-up 600 --duration 90 --limit-machines 5 & \
+	    --port 1502 --speed-up 600 --duration 90 \
+	    --machine linha-3.maquina-1 --machine linha-3.maquina-2 \
+	    --machine linha-1.maquina-1 --machine linha-2.maquina-1 & \
 	sleep 2 && \
 	uv run python $(R1_N2_DIR)/modbus_collector/main.py \
 	    --target localhost:1502 \
+	    --machine linha-3.maquina-1 \
+	    --machine linha-3.maquina-2 \
 	    --machine linha-1.maquina-1 \
-	    --machine linha-1.maquina-2 \
-	    --machine linha-1.maquina-3 \
-	    --machine linha-1.maquina-4 \
 	    --machine linha-2.maquina-1 \
 	    --max-runtime-seconds 80 & \
 	wait

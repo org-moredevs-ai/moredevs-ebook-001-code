@@ -133,6 +133,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="Restrict to the first N machines (faster smoke tests).",
     )
     parser.add_argument(
+        "--machine",
+        action="append",
+        default=None,
+        help="Replay only these machine ids (repeatable). Overrides --limit-machines.",
+    )
+    parser.add_argument(
         "--start-offset-hours",
         type=float,
         default=0.0,
@@ -149,6 +155,7 @@ def run(
     sample_period_s: float = 1.0,
     duration_s: float | None = None,
     limit_machines: int | None = None,
+    machines: list[str] | None = None,
     start_offset_hours: float = 0.0,
     seed: int = 20260509,
 ) -> int:
@@ -158,7 +165,9 @@ def run(
     EN: Main replay loop; returns the number of MQTT publishes.
     """
     states = load_states(data_dir)
-    if limit_machines is not None:
+    if machines:
+        states = states[states["machine_id"].isin(machines)]
+    elif limit_machines is not None:
         keep = states["machine_id"].drop_duplicates().head(limit_machines)
         states = states[states["machine_id"].isin(keep)]
     if start_offset_hours > 0:
@@ -175,6 +184,29 @@ def run(
     client = make_client(config)
     client.connect_async(config.host, config.port)
     client.loop_start()
+
+    # PT: Reancorar por DIAS INTEIROS (preserva a hora-do-dia: a "tarde" continua a ser
+    # 14h-22h no dashboard) e replicar a janela que ACABA ~agora, para o leitor ver o
+    # padrao no turno certo (ex.: as paragens termicas da linha 3 a tarde).
+    # EN: Whole-day re-anchor (preserves time-of-day, so "afternoon" stays 14h-22h on the
+    # dashboard) of the window ending ~now, so the reader sees the pattern at the right shift.
+    now = pd.Timestamp(datetime.now(UTC))
+    if duration_s is not None:
+        window_s = duration_s * speed_up
+    else:
+        window_s = (samples["timestamp"].iloc[-1] - samples["timestamp"].iloc[0]).total_seconds()
+    seed_max = samples["timestamp"].max()
+    seed_end = pd.Timestamp(datetime.combine(seed_max.date(), now.timetz()))
+    if seed_end > seed_max:
+        seed_end -= pd.Timedelta(days=1)
+    samples = samples[
+        (samples["timestamp"] > seed_end - pd.Timedelta(seconds=window_s))
+        & (samples["timestamp"] <= seed_end)
+    ].reset_index(drop=True)
+    if samples.empty:
+        LOG.warning("No samples in the aligned window.")
+        return 0
+    ts_shift = now - seed_end  # whole number of days → time-of-day preserved
 
     sim_start = samples["timestamp"].iloc[0]
     wall_start = time.monotonic()
@@ -202,7 +234,7 @@ def run(
             payload = {
                 "machine": row.machine_id,
                 "current_a": round(current_a, 3),
-                "ts_iso": datetime.now(UTC).isoformat(),
+                "ts_iso": (row.timestamp + ts_shift).isoformat(),
                 "state": row.state,
             }
             client.publish(
@@ -229,6 +261,7 @@ def main(argv: list[str] | None = None) -> int:
         sample_period_s=args.sample_period,
         duration_s=args.duration,
         limit_machines=args.limit_machines,
+        machines=args.machine,
         start_offset_hours=args.start_offset_hours,
         seed=args.seed,
     )

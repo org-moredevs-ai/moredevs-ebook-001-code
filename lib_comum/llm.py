@@ -310,6 +310,99 @@ class AnthropicProvider(LLMProvider):
         )
 
 
+def _rfq_from_json(
+    parsed: dict[str, object],
+    *,
+    raw_text: str,
+    provider: str,
+    audit: dict[str, object],
+) -> RfqExtraction:
+    """Map a parsed JSON object to an :class:`RfqExtraction` (shared by cloud providers)."""
+    items: list[ExtractedLineItem] = []
+    raw_items = parsed.get("items", [])
+    if isinstance(raw_items, list):
+        for entry in raw_items:
+            if not isinstance(entry, dict):
+                continue
+            items.append(
+                ExtractedLineItem(
+                    operation=str(entry.get("operation", "")),
+                    material=str(entry.get("material", "")),
+                    thickness_mm=float(entry.get("thickness_mm", 0.0) or 0.0),
+                    quantity=int(entry.get("quantity", 0) or 0),
+                    note=(str(entry["note"]) if entry.get("note") else None),
+                )
+            )
+    deadline_raw = parsed.get("deadline_days")
+    deadline_days = int(deadline_raw) if isinstance(deadline_raw, int | float) else None
+    customer_raw = parsed.get("customer")
+    customer = str(customer_raw) if isinstance(customer_raw, str) else None
+    return RfqExtraction(
+        items=items,
+        customer=customer,
+        deadline_days=deadline_days,
+        raw_provider_text=raw_text,
+        provider=provider,
+        audit_metadata=audit,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class OpenRouterProvider(LLMProvider):
+    """Paid cloud extractor — runs Claude through OpenRouter's OpenAI-compatible API.
+
+    PT: Caminho pago (o "modelo especializado na nuvem" do livro). Corre o Claude
+    via OpenRouter, para quem tem uma ``OPENROUTER_API_KEY`` em vez da chave directa
+    da Anthropic. A extracção é a mesma; muda só a rota.
+    EN: Paid path — runs Claude via OpenRouter for users holding an
+    ``OPENROUTER_API_KEY`` instead of a direct Anthropic key.
+    """
+
+    api_key: str
+    model: str = "anthropic/claude-sonnet-4.6"
+    name: ProviderName = "anthropic"
+
+    def extract_rfq(self, body: str) -> RfqExtraction:
+        import urllib.request
+
+        prompt = _ANTHROPIC_PROMPT.replace("{body}", body)
+        payload = json.dumps(
+            {
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 2048,
+                "temperature": 0,
+            }
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/chat/completions",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://moredevs.ai",
+                "X-Title": "MoreDevs Ebook Receita 3",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        message = data["choices"][0]["message"]
+        body_text = str(message.get("content") or "").strip()
+        usage = data.get("usage", {}) or {}
+        return _rfq_from_json(
+            _safe_json(body_text),
+            raw_text=body_text,
+            provider="anthropic",
+            audit={
+                "model": self.model,
+                "via": "openrouter",
+                "input_tokens": usage.get("prompt_tokens"),
+                "output_tokens": usage.get("completion_tokens"),
+            },
+        )
+
+
 def _safe_json(text: str) -> dict[str, object]:
     """Extract the first JSON object from *text*, tolerating prose around it."""
     start = text.find("{")
@@ -347,9 +440,22 @@ def make_provider(
     """
     chosen = name or os.environ.get("LLM_PROVIDER", "anthropic")
     if chosen == "anthropic":
+        # PT: caminho pago (Claude). Preferimos o OpenRouter se a sua chave estiver
+        # definida (chama o Claude via API compatível); senão a chave directa da
+        # Anthropic; senão recorre ao offline. EN: paid Claude path — OpenRouter first,
+        # then direct Anthropic, then offline fallback.
+        or_key = os.environ.get("OPENROUTER_API_KEY")
+        if or_key:
+            return OpenRouterProvider(
+                api_key=or_key,
+                model=model or os.environ.get("LLM_MODEL", "anthropic/claude-sonnet-4.6"),
+            )
         key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not key:
-            LOG.warning("ANTHROPIC_API_KEY not set; falling back to offline regex provider.")
+            LOG.warning(
+                "Nem OPENROUTER_API_KEY nem ANTHROPIC_API_KEY definidas; "
+                "a usar o provider offline (regex)."
+            )
             return OfflineProvider()
         return AnthropicProvider(
             api_key=key,

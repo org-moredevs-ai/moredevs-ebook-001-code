@@ -152,26 +152,38 @@ def schedule_dispatch(orders: list[Order], *, rule: str = "EDD") -> ScheduleResu
     return _result_from(orders, scheduled, order_ready)
 
 
-def demo_orders(seed: int = 20260509) -> list[Order]:
+def demo_orders(seed: int = 20260517) -> list[Order]:
     """Return a deterministic set of demo orders (auto-parts style).
 
-    PT: Encomendas de demonstração — passam por corte, CNC, soldadura e
-    acabamento, em sequências e tempos diferentes, com prazos apertados.
-    EN: Demo orders flowing through cutting, CNC, welding and finishing.
+    PT: 7 encomendas que seguem o **fluxo real da fábrica** — corte, CNC,
+    soldadura, acabamento, por esta ordem (uma peça pode saltar uma etapa, mas
+    nunca anda para trás: não se acaba antes de cortar). Os prazos (factor
+    1.5-2.1x do trabalho) põem a fábrica sob pressão realista: a regra EDD deixa
+    **2 encomendas claramente atrasadas** (o risco que o Nível 1 torna visível),
+    o optimizador CP-SAT corta o atraso de 242 para 41 min, e ainda sobra folga
+    para aceitar uma encomenda urgente sem atrasar mais ninguém.
+    EN: 7 orders following the **real factory flow** — cutting, CNC, welding,
+    finishing, in that order (a part may skip a stage but never goes backwards).
+    Due dates (1.5-2.1x the work) put the shop under realistic pressure: EDD
+    leaves **two clearly late orders**, CP-SAT cuts the tardiness from 242 to 41
+    min, and there is still slack to accept an urgent order with no extra
+    lateness.
     """
     import numpy as np
 
     rng = np.random.default_rng(seed)
-    machines = ["corte", "cnc", "soldadura", "acabamento"]
+    # Natural process flow: parts move forward through these stages.
+    flow = ["corte", "cnc", "soldadura", "acabamento"]
     orders: list[Order] = []
-    for i in range(6):
+    for i in range(7):
         n_ops = int(rng.integers(2, 5))
-        chosen = list(rng.permutation(machines))[:n_ops]
+        # Pick a subset of stages and keep them in flow order — a physically valid
+        # route (never "finish before cut"), unlike a random permutation.
+        stage_idx = sorted(rng.choice(len(flow), size=n_ops, replace=False))
         operations = [
-            Operation(machine=str(m), duration_min=int(rng.integers(30, 120))) for m in chosen
+            Operation(machine=flow[j], duration_min=int(rng.integers(30, 120))) for j in stage_idx
         ]
         work = sum(op.duration_min for op in operations)
-        # Due dates deliberately tight so EDD leaves some tardiness to optimise.
-        due = int(work * rng.uniform(1.4, 2.6))
+        due = int(work * rng.uniform(1.5, 2.1))
         orders.append(Order(id=f"OF-{4450 + i}", operations=operations, due_min=due))
     return orders

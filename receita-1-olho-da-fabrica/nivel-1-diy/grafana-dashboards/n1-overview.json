@@ -1,5 +1,7 @@
 {
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -7,25 +9,51 @@
   "links": [],
   "panels": [
     {
-      "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
       "description": "Current draw per machine over the last 8 hours.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "linear", "lineWidth": 1, "spanNulls": false },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "spanNulls": false
+          },
           "unit": "amp"
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 1,
       "options": {
-        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
           "format": "time_series",
           "rawQuery": true,
           "rawSql": "SELECT time_bucket('1 minute', ts) AS time, machine AS metric, AVG(value) AS value FROM telemetry WHERE metric = 'current_a' AND ts > NOW() - INTERVAL '8 hours' GROUP BY 1, machine ORDER BY 1",
@@ -36,29 +64,83 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
       "description": "Per-machine state derived from the most recent 5 minutes of telemetry.",
       "fieldConfig": {
         "defaults": {
-          "custom": { "align": "auto", "cellOptions": { "type": "color-background" }, "inspect": false },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "color-background"
+            },
+            "inspect": false
+          },
           "mappings": [
-            { "options": { "parado": { "color": "red", "index": 0 } }, "type": "value" },
-            { "options": { "em vazio": { "color": "yellow", "index": 1 } }, "type": "value" },
-            { "options": { "a produzir": { "color": "green", "index": 2 } }, "type": "value" }
+            {
+              "options": {
+                "parado": {
+                  "color": "red",
+                  "index": 0
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "em vazio": {
+                  "color": "yellow",
+                  "index": 1
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "a produzir": {
+                  "color": "green",
+                  "index": 2
+                }
+              },
+              "type": "value"
+            }
           ],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green" }] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
         },
         "overrides": []
       },
-      "gridPos": { "h": 11, "w": 12, "x": 0, "y": 9 },
+      "gridPos": {
+        "h": 11,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
       "id": 2,
-      "options": { "cellHeight": "sm", "footer": { "show": false }, "showHeader": true },
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
+      },
       "targets": [
         {
-          "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+          "datasource": {
+            "type": "postgres",
+            "uid": "TimescaleDB"
+          },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT machine, CASE WHEN AVG(value) < 0.5 THEN 'parado' WHEN AVG(value) < 2.0 THEN 'em vazio' ELSE 'a produzir' END AS estado, ROUND(AVG(value)::numeric, 2) AS corrente_media_a FROM telemetry WHERE metric = 'current_a' AND ts > NOW() - INTERVAL '5 minutes' GROUP BY machine ORDER BY machine",
+          "rawSql": "SELECT machine, CASE WHEN AVG(value) < 0.5 THEN 'parado' WHEN AVG(value) < 2.0 THEN 'em vazio' ELSE 'a produzir' END AS estado, ROUND(AVG(value)::numeric, 2) AS corrente_media_a FROM telemetry WHERE metric = 'current_a' AND ts > (SELECT max(ts) FROM telemetry WHERE metric='current_a') - INTERVAL '5 minutes' GROUP BY machine ORDER BY machine",
           "refId": "A"
         }
       ],
@@ -66,49 +148,76 @@
       "type": "table"
     },
     {
-      "datasource": { "type": "postgres", "uid": "TimescaleDB" },
-      "description": "Hourly fraction of samples where the machine looked stopped (current < 0.5 A).",
+      "datasource": {
+        "type": "postgres",
+        "uid": "TimescaleDB"
+      },
+      "description": "Fraction of samples with the machine stopped (current < 0.5 A), split by shift. Line 3's afternoon bar is the field-case signal (thermal trips).",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "continuous-RdYlGr" },
-          "custom": { "align": "auto", "cellOptions": { "type": "color-background" } },
-          "max": 1,
+          "unit": "percent",
           "min": 0,
-          "unit": "percentunit"
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 1,
+            "axisLabel": "% stopped"
+          }
         },
         "overrides": []
       },
-      "gridPos": { "h": 11, "w": 12, "x": 12, "y": 9 },
+      "gridPos": {
+        "h": 11,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
       "id": 3,
       "options": {
-        "calculate": false,
-        "cellGap": 1,
-        "color": { "mode": "scheme", "scheme": "RdYlGn", "reverse": true },
-        "exemplars": { "color": "rgba(255,0,255,0.7)" },
-        "filterValues": { "le": 1e-9 },
-        "legend": { "show": true },
-        "rowsFrame": { "layout": "auto" },
-        "tooltip": { "show": true },
-        "yAxis": { "axisPlacement": "left", "reverse": false }
+        "orientation": "horizontal",
+        "stacking": "none",
+        "showValue": "auto",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "xTickLabelRotation": 0,
+        "fullHighlight": false,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "postgres", "uid": "TimescaleDB" },
+          "refId": "A",
           "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT time_bucket('1 hour', ts) AS time, machine, AVG(CASE WHEN value < 0.5 THEN 1.0 ELSE 0.0 END) AS stopped_fraction FROM telemetry WHERE metric = 'current_a' AND ts > NOW() - INTERVAL '24 hours' GROUP BY 1, machine ORDER BY 1, machine",
-          "refId": "A"
+          "rawSql": "SELECT machine, round(100*AVG((value < 0.5)::int) FILTER (WHERE EXTRACT(hour FROM ts) BETWEEN 6 AND 13)::numeric,1) AS morning, round(100*AVG((value < 0.5)::int) FILTER (WHERE EXTRACT(hour FROM ts) BETWEEN 14 AND 21)::numeric,1) AS afternoon, round(100*AVG((value < 0.5)::int) FILTER (WHERE EXTRACT(hour FROM ts) NOT BETWEEN 6 AND 21)::numeric,1) AS night FROM telemetry WHERE metric = 'current_a' GROUP BY machine ORDER BY machine"
         }
       ],
-      "title": "Stopped fraction per machine — last 24 h",
-      "type": "heatmap"
+      "title": "Stopped fraction by machine and shift (24 h)",
+      "type": "barchart"
     }
   ],
   "refresh": "10s",
   "schemaVersion": 39,
-  "tags": ["receita-1", "n1", "fabrica-inteligente"],
-  "templating": { "list": [] },
-  "time": { "from": "now-8h", "to": "now" },
+  "tags": [
+    "receita-1",
+    "n1",
+    "fabrica-inteligente"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-8h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "browser",
   "title": "Receita 1 N1 — Olho da fábrica",

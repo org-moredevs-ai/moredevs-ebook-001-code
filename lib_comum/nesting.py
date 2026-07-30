@@ -146,35 +146,158 @@ def utilisation(result: NestingResult) -> float:
     return result.placed_piece_area_mm2 / used_sheet_area
 
 
-def demo_order(seed: int = 20260509) -> tuple[list[Piece], Sheet]:
-    """Return a deterministic demo order (furniture-style panels) + a sheet.
+@dataclass(frozen=True, slots=True)
+class ManualStats:
+    """Outcome of scoring a hand-made layout (drag-and-drop game)."""
 
-    PT: Encomenda de demonstração determinística (painéis de mobiliário).
-    EN: Deterministic demo order (furniture-style panels).
+    utilisation: float
+    valid_indices: list[int]  # pieces inside the sheet and not overlapping
+    invalid_indices: list[int]  # pieces off the sheet or overlapping another
+
+
+def _aabb_overlap(
+    a: tuple[float, float, float, float],
+    b: tuple[float, float, float, float],
+    tol: float = 1.0,
+) -> bool:
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    return not (
+        ax + aw <= bx + tol or bx + bw <= ax + tol or ay + ah <= by + tol or by + bh <= ay + tol
+    )
+
+
+def manual_placement_stats(
+    rects: list[tuple[float, float, float, float]],
+    sheet: Sheet,
+) -> ManualStats:
+    """Score a hand-made layout: which pieces are validly placed, and the area used.
+
+    PT: Cada peça é ``(x, y, largura, altura)`` em mm numa folha. Uma peça só
+    conta para o aproveitamento se estiver **dentro** da folha e **sem se
+    sobrepor** a outra — as sobreposições e as peças fora não contam, como no
+    corte real. Serve o jogo "coloca tu vs o computador".
+    EN: Each piece is ``(x, y, width, height)`` in mm on a sheet. A piece counts
+    towards utilisation only if it is **inside** the sheet and does **not
+    overlap** another — overlaps and off-sheet pieces do not count, as in a real
+    cut. Powers the "place it yourself vs the computer" game.
     """
-    import numpy as np
-
-    rng = np.random.default_rng(seed)
-    catalogue = [
-        ("lateral", 600.0, 1800.0, 2),
-        ("prateleira", 560.0, 300.0, 6),
-        ("tampo", 900.0, 600.0, 1),
-        ("fundo", 900.0, 1800.0, 1),
-        ("gaveta-frente", 880.0, 180.0, 4),
-        ("gaveta-lateral", 560.0, 180.0, 8),
+    w_sheet, h_sheet = sheet.width_mm, sheet.height_mm
+    tol = 1.0
+    inside = [
+        (x >= -tol and y >= -tol and x + w <= w_sheet + tol and y + h <= h_sheet + tol)
+        for (x, y, w, h) in rects
     ]
-    pieces = [
-        Piece(id=name, width_mm=w, height_mm=h, quantity=int(qty)) for name, w, h, qty in catalogue
-    ]
-    # Jitter quantities slightly for variety, staying deterministic.
-    pieces = [
-        Piece(
-            id=p.id,
-            width_mm=p.width_mm,
-            height_mm=p.height_mm,
-            quantity=p.quantity + int(rng.integers(0, 2)),
+    valid: list[int] = []
+    invalid: list[int] = []
+    for i, rect in enumerate(rects):
+        if not inside[i]:
+            invalid.append(i)
+            continue
+        overlaps = any(
+            j != i and inside[j] and _aabb_overlap(rect, rects[j]) for j in range(len(rects))
         )
-        for p in pieces
+        (invalid if overlaps else valid).append(i)
+    used_area = sum(rects[i][2] * rects[i][3] for i in valid)
+    sheet_area = w_sheet * h_sheet
+    util = used_area / sheet_area if sheet_area > 0 else 0.0
+    return ManualStats(utilisation=util, valid_indices=valid, invalid_indices=invalid)
+
+
+def pack_naive(
+    pieces: list[Piece],
+    sheet: Sheet,
+    *,
+    kerf_mm: float = 3.0,
+) -> NestingResult:
+    """Pack pieces the naive way: left-to-right in rows, no sorting, no rotation.
+
+    PT: A disposição "à mão" — coloca as peças por filas, na ordem dada, sem
+    rodar nem ordenar por tamanho, abrindo uma folha nova quando a actual
+    esgota. Serve de linha de base para mostrar quanto a heurística de
+    ``pack_rectangles`` melhora o aproveitamento (e poupa folhas).
+    EN: The by-hand layout — places pieces in rows, in input order, without
+    rotating or sorting by size, opening a new sheet when the current one fills
+    up. A baseline that shows how much pack_rectangles lifts utilisation (and
+    saves whole sheets).
+    """
+    placements: list[Placement] = []
+    area_by_id = {p.id: p.area_mm2 for p in pieces}
+    placed_area = 0.0
+    unplaced: list[str] = []
+
+    max_sheets = max(1, sheet.count)
+    sheet_index = 0
+    cursor_x = 0.0
+    cursor_y = 0.0
+    shelf_h = 0.0
+
+    for piece in pieces:
+        w = piece.width_mm + kerf_mm
+        h = piece.height_mm + kerf_mm
+        for _ in range(piece.quantity):
+            if w > sheet.width_mm or h > sheet.height_mm:
+                unplaced.append(piece.id)  # bigger than any sheet
+                continue
+            if cursor_x + w > sheet.width_mm:  # row full → next row
+                cursor_x = 0.0
+                cursor_y += shelf_h
+                shelf_h = 0.0
+            if cursor_y + h > sheet.height_mm:  # sheet full → next sheet
+                sheet_index += 1
+                cursor_x = 0.0
+                cursor_y = 0.0
+                shelf_h = 0.0
+            if sheet_index >= max_sheets:  # ran out of stock sheets
+                unplaced.append(piece.id)
+                continue
+            placements.append(
+                Placement(
+                    piece_id=piece.id,
+                    sheet_index=sheet_index,
+                    x=cursor_x,
+                    y=cursor_y,
+                    width=piece.width_mm,
+                    height=piece.height_mm,
+                    rotated=False,
+                )
+            )
+            placed_area += area_by_id.get(piece.id, 0.0)
+            cursor_x += w
+            shelf_h = max(shelf_h, h)
+
+    used_bins = {p.sheet_index for p in placements}
+    return NestingResult(
+        sheet=sheet,
+        placements=placements,
+        sheets_used=len(used_bins),
+        placed_piece_area_mm2=placed_area,
+        unplaced=unplaced,
+    )
+
+
+def demo_order() -> tuple[list[Piece], Sheet]:
+    """Return a deterministic demo order (wardrobe panels) + a stock sheet.
+
+    PT: Encomenda de demonstração (painéis de um guarda-roupa), escolhida para o
+    encaixe optimizado dar ~90% de aproveitamento em 3 folhas, contra ~54% e 5
+    folhas na disposição ingénua — e para a rotação fazer diferença (sem
+    rotação sobe para 4 folhas). São os números que o leitor vê em ``demo-r4``.
+    EN: Deterministic demo order (wardrobe panels), tuned so the optimised
+    packing reaches ~90% utilisation on 3 sheets versus ~54% and 5 sheets for
+    the naive layout — and so rotation matters (without it, 4 sheets are
+    needed). These are the numbers the reader sees in ``demo-r4``.
+    """
+    catalogue = [
+        ("lateral", 600.0, 2000.0, 4),
+        ("prateleira", 864.0, 400.0, 8),
+        ("tampo", 1200.0, 600.0, 2),
+        ("porta", 596.0, 1960.0, 3),
+        ("gaveta-frente", 560.0, 180.0, 10),
+        ("divisoria", 564.0, 1960.0, 2),
+    ]
+    pieces = [
+        Piece(id=name, width_mm=w, height_mm=h, quantity=qty) for name, w, h, qty in catalogue
     ]
     sheet = Sheet(width_mm=2800.0, height_mm=2070.0, count=10)  # standard MDF board
     return pieces, sheet

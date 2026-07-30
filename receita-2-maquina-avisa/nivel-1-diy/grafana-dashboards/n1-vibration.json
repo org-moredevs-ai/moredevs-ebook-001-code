@@ -28,11 +28,11 @@
           "datasource": { "type": "postgres", "uid": "TimescaleDB" },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_bucket('30 seconds', ts) AS time, machine AS metric, AVG(amp_g) AS value FROM vibration_bands WHERE band = 'bpfo' AND axis = 'x' AND ts > NOW() - INTERVAL '15 minutes' GROUP BY 1, machine ORDER BY 1",
+          "rawSql": "SELECT time_bucket('30 seconds', ts) AS time, machine AS metric, AVG(amp_g) AS value FROM vibration_bands WHERE band = 'bpfo' AND axis = 'x' AND $__timeFilter(ts) GROUP BY 1, machine ORDER BY 1",
           "refId": "A"
         }
       ],
-      "title": "BPFO-band amplitude (x-axis) — last 15 min",
+      "title": "BPFO-band amplitude (x-axis) — dashboard range",
       "type": "timeseries"
     },
     {
@@ -57,11 +57,11 @@
           "datasource": { "type": "postgres", "uid": "TimescaleDB" },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_bucket('30 seconds', ts) AS time, machine AS metric, AVG(amp_g) AS value FROM vibration_bands WHERE band = 'rotation_1x' AND axis = 'x' AND ts > NOW() - INTERVAL '15 minutes' GROUP BY 1, machine ORDER BY 1",
+          "rawSql": "SELECT time_bucket('30 seconds', ts) AS time, machine AS metric, AVG(amp_g) AS value FROM vibration_bands WHERE band = 'rotation_1x' AND axis = 'x' AND $__timeFilter(ts) GROUP BY 1, machine ORDER BY 1",
           "refId": "A"
         }
       ],
-      "title": "1x rotation harmonic (x-axis) — last 15 min",
+      "title": "1x rotation harmonic (x-axis) — dashboard range",
       "type": "timeseries"
     },
     {
@@ -94,16 +94,16 @@
           "datasource": { "type": "postgres", "uid": "TimescaleDB" },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT ts, machine, axis, band, severity, ROUND(amp_g::numeric, 4) AS amp_g, ROUND(baseline_g::numeric, 4) AS baseline_g FROM vibration_alerts WHERE ts > NOW() - INTERVAL '15 minutes' ORDER BY ts DESC LIMIT 30",
+          "rawSql": "SELECT ts, machine, axis, band, severity, ROUND(amp_g::numeric, 4) AS amp_g, ROUND(baseline_g::numeric, 4) AS baseline_g FROM vibration_alerts WHERE $__timeFilter(ts) ORDER BY ts DESC LIMIT 30",
           "refId": "A"
         }
       ],
-      "title": "Recent alerts (last 15 min)",
+      "title": "Recent alerts (dashboard range)",
       "type": "table"
     },
     {
       "datasource": { "type": "postgres", "uid": "TimescaleDB" },
-      "description": "Spectral fingerprint of each machine — averaged BPFO vs. 1x amplitudes over the last 5 minutes.",
+      "description": "Spectral fingerprint of each machine — averaged BPFO vs. 1x amplitudes over the dashboard rangeutes.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -133,11 +133,11 @@
           "datasource": { "type": "postgres", "uid": "TimescaleDB" },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT machine, ROUND(AVG(CASE WHEN band='rotation_1x' THEN amp_g END)::numeric, 4) AS rotation_1x_g, ROUND(AVG(CASE WHEN band='bpfo' THEN amp_g END)::numeric, 4) AS bpfo_g FROM vibration_bands WHERE axis = 'x' AND ts > NOW() - INTERVAL '5 minutes' GROUP BY machine ORDER BY bpfo_g DESC NULLS LAST",
+          "rawSql": "SELECT machine, ROUND(AVG(CASE WHEN band='rotation_1x' THEN amp_g END)::numeric, 4) AS rotation_1x_g, ROUND(AVG(CASE WHEN band='bpfo' THEN amp_g END)::numeric, 4) AS bpfo_g FROM vibration_bands WHERE axis = 'x' AND $__timeFilter(ts) GROUP BY machine ORDER BY bpfo_g DESC NULLS LAST",
           "refId": "A"
         }
       ],
-      "title": "Per-machine spectral fingerprint (x-axis, last 5 min)",
+      "title": "Per-machine spectral fingerprint (x-axis, dashboard range)",
       "type": "table"
     }
   ],
@@ -145,7 +145,7 @@
   "schemaVersion": 39,
   "tags": ["receita-2", "n1", "vibration", "fabrica-inteligente"],
   "templating": { "list": [] },
-  "time": { "from": "now-15m", "to": "now" },
+  "time": { "from": "now-3d", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
   "title": "Receita 2 N1 — Vibração & FFT",

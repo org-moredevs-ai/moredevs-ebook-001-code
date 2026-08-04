@@ -212,9 +212,17 @@ if compare:
     with st.spinner("A correr os dois fornecedores…"):
         off = make_provider("offline").extract_rfq(body)
         ai = make_provider("anthropic").extract_rfq(body)
+    # Only count properly recognised items (operation set); the offline provider
+    # now also surfaces unparsed lines as "por classificar" entries (operation="").
+    off_ok = [it for it in off.items if it.operation]
+    off_todo = [it for it in off.items if not it.operation]
+    ai_ok = [it for it in ai.items if it.operation]
     a, b = st.columns(2)
     with a:
-        st.markdown(f"#### 🔧 Offline — **{len(off.items)}** itens")
+        header = f"#### 🔧 Offline — **{len(off_ok)}** reconhecido(s)"
+        if off_todo:
+            header += f" · {len(off_todo)} por classificar"
+        st.markdown(header)
         st.caption(f"cliente: {off.customer or '(?)'} · prazo: {off.deadline_days or '(?)'} dias")
         st.dataframe(
             _extraction_table(off) if off.items else pd.DataFrame(),
@@ -222,7 +230,7 @@ if compare:
             use_container_width=True,
         )
     with b:
-        st.markdown(f"#### 🤖 Claude — **{len(ai.items)}** itens")
+        st.markdown(f"#### 🤖 Claude — **{len(ai_ok)}** itens")
         st.caption(
             f"cliente: {ai.customer or '(?)'} · prazo: {ai.deadline_days or '(?)'} dias · modelo: {ai.audit_metadata.get('model', '?')}"
         )
@@ -231,7 +239,7 @@ if compare:
             hide_index=True,
             use_container_width=True,
         )
-    gained = len(ai.items) - len(off.items)
+    gained = len(ai_ok) - len(off_ok)
     if gained > 0:
         st.success(
             f"O modelo de IA extraiu **mais {gained} item(s)** e campos que o regex deixou "

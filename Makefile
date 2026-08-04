@@ -15,12 +15,12 @@ help: ## Show this help
 
 .PHONY: setup
 setup: ## Create virtualenv with uv and install dependencies
-	uv venv --python $(PY_VERSION)
+	@test -d .venv || uv venv --python $(PY_VERSION)
 	uv sync --all-extras
 
 .PHONY: setup-min
 setup-min: ## Install only common dependencies (no recipe extras)
-	uv venv --python $(PY_VERSION)
+	@test -d .venv || uv venv --python $(PY_VERSION)
 	uv sync
 
 ##@ Stack
@@ -98,21 +98,22 @@ demo-r1-n2: ## Recipe 1 Tier 2 — Modbus + OEE (90s end-to-end demo)
 	docker compose exec -T timescaledb psql -U fabrica -d fabrica \
 	    -c "CALL refresh_continuous_aggregate('machine_availability_1m', NULL, NULL);" \
 	    -c "CALL refresh_continuous_aggregate('machine_availability_1h', NULL, NULL);" || true
-	@echo "→ Evaluating Tier 2 alert rules once (stopped machines + low availability)..."
-	uv run python $(R1_N2_DIR)/alerting/rules.py --once --idle-minutes 1 || true
+	@echo "→ Evaluating Tier 2 alert rules once (availability target 90%, so the thermally-affected line-3 surfaces an alert)..."
+	uv run python $(R1_N2_DIR)/alerting/rules.py --once --idle-minutes 1 --availability-target 0.90 || true
 	@echo "→ Open http://localhost:3000 — dashboard 'Receita 1 N2 — OEE & Pro'."
 
 R2_N1_DIR := receita-2-maquina-avisa/nivel-1-diy
 
 .PHONY: demo-r2
-demo-r2: ## Recipe 2 — The Machine That Warns (60s end-to-end demo)
+demo-r2: ## Recipe 2 — The Machine That Warns (90s end-to-end demo)
 	@echo "→ Make sure 'make up' is running (TimescaleDB + Mosquitto + Grafana)."
-	@echo "→ Starting vibration simulator + FFT alert receiver for 60s..."
+	@echo "→ Starting vibration simulator + FFT alert receiver for ~90s..."
+	@echo "→ Warmup covers healthy days, then the wear ramp: the 83 Hz BPFO band grows."
 	uv run python $(R2_N1_DIR)/simulator/replay_to_mqtt.py \
-	    --speed-up 4320 --duration 60 --start-offset-days 17 --sample-period-s 300 & \
+	    --speed-up 14400 --duration 85 --start-offset-days 14 --sample-period-s 600 & \
 	sleep 1 && \
 	uv run python $(R2_N1_DIR)/fft_alert/receiver.py \
-	    --max-runtime-seconds 65 --threshold-pct 40 \
+	    --max-runtime-seconds 90 --threshold-pct 40 \
 	    --baseline-window 30 --warmup-samples 20 \
 	    --cooldown-seconds 3 --min-amplitude-g 0.005 & \
 	wait
@@ -121,18 +122,19 @@ demo-r2: ## Recipe 2 — The Machine That Warns (60s end-to-end demo)
 R2_N2_DIR := receita-2-maquina-avisa/nivel-2-pro
 
 .PHONY: demo-r2-n2
-demo-r2-n2: ## Recipe 2 Tier 2 — Isolation Forest anomaly detector (75s end-to-end demo)
+demo-r2-n2: ## Recipe 2 Tier 2 — Isolation Forest anomaly detector (90s end-to-end demo)
 	@echo "→ Make sure 'make up' is running (TimescaleDB + Mosquitto + Grafana)."
-	@echo "→ Starting vibration simulator + feature extractor + IF detector for ~75s..."
-	@echo "→ Warmup covers 4 healthy days before the wear window starts."
+	@echo "→ Starting vibration simulator + feature extractor + IF detector for ~90s..."
+	@echo "→ Warmup covers 4 healthy days, then the wear ramp: RMS ~0.45 -> ~1.3 g and"
+	@echo "  kurtosis ~3 -> ~11 as the bearing fault develops, so the anomaly lights up."
 	uv run python $(R2_N1_DIR)/simulator/replay_to_mqtt.py \
-	    --speed-up 14400 --duration 70 --start-offset-days 14 --sample-period-s 300 & \
+	    --speed-up 14400 --duration 85 --start-offset-days 14 --sample-period-s 600 & \
 	sleep 1 && \
 	uv run python $(R2_N2_DIR)/feature_extractor/extractor.py \
-	    --max-runtime-seconds 75 & \
+	    --max-runtime-seconds 92 & \
 	sleep 2 && \
 	uv run python $(R2_N2_DIR)/isoforest_detector/detector.py \
-	    --max-runtime-seconds 75 --warmup-window 20 \
+	    --max-runtime-seconds 92 --warmup-window 20 \
 	    --alert-threshold 0.0 --cooldown-seconds 3 & \
 	wait
 	@echo "→ Open http://localhost:3000 — dashboard 'Receita 2 N2 — Anomalia (Isolation Forest)'."

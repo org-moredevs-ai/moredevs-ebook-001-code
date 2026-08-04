@@ -33,6 +33,7 @@ import numpy as np
 
 from lib_comum.data_synth.moldes import (
     BPFO_HZ,
+    FAULT_RMS_GAIN,
     MACHINES,
     WEAR_WINDOW_DAYS,
     _logistic,
@@ -118,49 +119,65 @@ def synthesise_axis(
         return rng.normal(0, noise_amp, n).astype(np.float64)
 
     fundamental_hz = float(cfg["healthy_dom_hz"])
-    fundamental_amp = _axis_amplitude(axis, float(cfg["healthy_rms_g"]))
+    wear = _logistic(_wear_progress(sim_ts, period_end)) if cfg["fault_bearing"] else 0.0
 
     # Random phase per snapshot so the spectrum looks like real-world stationary
     # noise from minute to minute.
     phase = float(rng.uniform(0, 2 * np.pi))
-    waveform = fundamental_amp * np.sin(2 * np.pi * fundamental_hz * t + phase)
 
-    # Small 2x harmonic, present in healthy machines too (gear meshing, motor).
-    waveform += 0.25 * fundamental_amp * np.sin(4 * np.pi * fundamental_hz * t + phase)
+    # Build the waveform SHAPE with relative amplitudes; the overall level is
+    # normalised at the end so the measured RMS follows the same wear curve as
+    # the ``vibration_metrics`` table in ``lib_comum.data_synth.moldes`` — that
+    # way the live feature_extractor recovers the RMS and kurtosis the book cites.
+    #
+    # Broadband friction noise DOMINATES a healthy signal, so its kurtosis sits
+    # near the Gaussian value of 3 (a pure tone alone would give ~1.5).
+    shape = rng.normal(0.0, 0.75, n)
+    # Rotation fundamental (1x) plus a small 2x harmonic: the clean FFT peak that
+    # marks the dominant frequency at 25 Hz while the machine is healthy.
+    shape += 0.60 * np.sin(2 * np.pi * fundamental_hz * t + phase)
+    shape += 0.15 * np.sin(4 * np.pi * fundamental_hz * t + phase)
 
-    # Friction noise floor (white, scaled to the machine's baseline RMS).
-    waveform += rng.normal(0, 0.15 * fundamental_amp, n)
+    if wear > 0.0:
+        # BPFO tone with rotation sidebands, growing with wear. As it grows it
+        # overtakes the rotation peak, drifting the dominant frequency 25 -> 83 Hz.
+        bpfo_signal = (1.1 * wear) * np.sin(2 * np.pi * BPFO_HZ * t + phase)
+        bpfo_signal *= 1.0 + 0.6 * np.sin(2 * np.pi * fundamental_hz * t)
+        shape += bpfo_signal
 
-    if cfg["fault_bearing"]:
-        wear = _logistic(_wear_progress(sim_ts, period_end))
-        if wear > 0.0:
-            # BPFO component scaled by wear progress.
-            bpfo_amp = fundamental_amp * 2.2 * wear
-            bpfo_signal = bpfo_amp * np.sin(2 * np.pi * BPFO_HZ * t + phase)
-            # Amplitude-modulate the BPFO by the rotation harmonic to produce
-            # realistic sidebands at BPFO ± fundamental.
-            modulation = 1.0 + 0.6 * np.sin(2 * np.pi * fundamental_hz * t)
-            waveform += bpfo_signal * modulation
+        # Sparse, tall impulses — the characteristic bearing "ringing". They are
+        # rare (a few per window) and sharp, so they push kurtosis from ~3 towards
+        # ~12 at the fault point, AHEAD of the RMS. We size them to carry a
+        # wear-dependent fraction of the signal energy, which is what actually
+        # controls the kurtosis a reader sees in the feature table.
+        pulse_len = 2
+        pulse_shape = np.exp(-np.arange(pulse_len) / 1.0)  # tall, decays fast
+        n_impulses = max(1, round(0.014 * n))  # ~14 per 1 kHz window -> genuinely rare
+        impulses = np.zeros(n)
+        starts = rng.integers(0, n - pulse_len, size=n_impulses)
+        signs = rng.choice(np.array([-1.0, 1.0]), size=n_impulses)
+        for start_i, sign in zip(starts, signs, strict=False):
+            impulses[start_i : start_i + pulse_len] += sign * pulse_shape
+        # Scale the impulse train so it holds energy fraction ``frac`` of the
+        # background. The kurtosis grows convexly with ``frac``, so a sqrt law
+        # tracks the target curve (kurtosis ~= 3 + 9*wear) across the whole ramp.
+        frac = min(0.5, 0.40 * float(np.sqrt(wear)))
+        bg_energy = float(np.sum(shape**2))
+        imp_energy = float(np.sum(impulses**2))
+        if frac > 0.0 and imp_energy > 0.0 and bg_energy > 0.0:
+            scale = float(np.sqrt(frac / (1.0 - frac) * bg_energy / imp_energy))
+            shape += scale * impulses
 
-            # Periodic impulses — the characteristic bearing "ringing" — at
-            # the BPFO rate. They drive kurtosis up. Amplitude grows with wear.
-            impulse_period_samples = max(1, round(sample_rate_hz / BPFO_HZ))
-            impulse_amp = fundamental_amp * 4.0 * wear
-            # Decaying-exponential pulse so it looks like a damped ring.
-            pulse_len = max(2, impulse_period_samples // 3)
-            pulse_idx = np.arange(pulse_len)
-            pulse_shape = np.exp(-pulse_idx / max(1.0, pulse_len / 4.0)) * np.sin(
-                2 * np.pi * (BPFO_HZ * 3) * pulse_idx / sample_rate_hz
-            )
-            impulses = np.zeros(n)
-            for start in range(0, n - pulse_len, impulse_period_samples):
-                jitter = int(rng.integers(-3, 4))
-                start_i = max(0, start + jitter)
-                end_i = min(n, start_i + pulse_len)
-                impulses[start_i:end_i] += pulse_shape[: end_i - start_i] * impulse_amp
-            waveform += impulses
+    # Normalise to the analytic target RMS from the moldes wear model
+    # (rms = base_rms * (1 + (FAULT_RMS_GAIN - 1) * wear)). Scaling is RMS-only and
+    # leaves the kurtosis — set by the noise/tone/impulse mix above — untouched.
+    base_rms = _axis_amplitude(axis, float(cfg["healthy_rms_g"]))
+    target_rms = base_rms * (1.0 + (FAULT_RMS_GAIN - 1.0) * wear)
+    current_rms = float(np.sqrt(np.mean(shape**2)))
+    if current_rms > 0.0:
+        shape *= target_rms / current_rms
 
-    return waveform.astype(np.float64)
+    return shape.astype(np.float64)
 
 
 def synthesise_snapshot(

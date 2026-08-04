@@ -149,12 +149,27 @@ class OfflineProvider(LLMProvider):
     def extract_rfq(self, body: str) -> RfqExtraction:
         items: list[ExtractedLineItem] = []
         for line in body.splitlines():
-            stripped = line.strip().lstrip("-").lstrip("*").strip()
+            raw = line.strip()
+            is_bullet = bool(raw) and raw[0] in "-*•"
+            stripped = raw.lstrip("-*•").strip()
             if not stripped:
                 continue
             item = _parse_line(stripped)
             if item is not None:
                 items.append(item)
+            elif is_bullet:
+                # A bullet is a work-item line; if the regex can't parse it we
+                # surface it for human review ("itens por classificar") instead
+                # of dropping it silently — the offline path is limited, not sneaky.
+                items.append(
+                    ExtractedLineItem(
+                        operation="",
+                        material="",
+                        thickness_mm=0.0,
+                        quantity=0,
+                        note=f"linha não reconhecida: {stripped}",
+                    )
+                )
         return RfqExtraction(
             items=items,
             customer=_match_customer(body),

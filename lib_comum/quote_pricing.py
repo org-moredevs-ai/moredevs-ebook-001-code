@@ -189,8 +189,9 @@ def render_quote_text(quote: Quote) -> str:
         lines.append("")
         lines.append("Itens por classificar (revisão humana):")
         for entry in quote.unresolved_items:
-            lines.append(
-                f"  - {entry.operation or '(?)'} | {entry.material or '(material?)'}"
+            detail = entry.note or (
+                f"{entry.operation or '(?)'} | {entry.material or '(material?)'}"
                 f" | qty={entry.quantity}"
             )
+            lines.append(f"  - {detail}")
     return "\n".join(lines)
